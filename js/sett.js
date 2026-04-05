@@ -45,7 +45,9 @@ fetch('js/data.json')
       // إرسال المصفوفة النهائية للدالة
       fillColorsDatalist(allColors);
     }
-
+    if (data.registration_types) {
+      fillRegSelect(data.registration_types);
+    }
   })
   .catch(error => console.error('Error loading the JSON data:', error));
 
@@ -97,7 +99,21 @@ function fillColorsDatalist(colorsArray) {
   });
 }
 
-
+function fillRegSelect(regArray) {
+  const sel = document.getElementById('f-vreg');
+  if (!sel || !regArray) return;
+  
+  // تفريغ القائمة مع الإبقاء على الخيار الافتراضي
+  sel.innerHTML = '<option value="">اختر صفة التسجيل...</option>';
+  
+  // المرور على المصفوفة وإضافة الخيارات
+  regArray.forEach(reg => {
+    const opt = document.createElement('option');
+    opt.value = reg;
+    opt.textContent = reg; // هذا ما سيظهر للمستخدم في القائمة المنسدلة
+    sel.appendChild(opt);
+  });
+}
 // ═══════════════════════════════════════════
 // INITIALIZE CAR SELECTS (Modified to run after fetch)
 // ═══════════════════════════════════════════
