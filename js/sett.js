@@ -5,6 +5,7 @@ let PDB = [];
 let CAR_DATA = {};
 let fp = [];
 let leftInd=36, rightInd=36;
+let MAKE_NAME_TO_ID = {}; // لحفظ أرقام الماركات
 // ═══════════════════════════════════════════
 // FETCH DATA FROM SUPABASE
 // ═══════════════════════════════════════════
@@ -80,6 +81,161 @@ Promise.all([
 
 })
 .catch(error => console.error('❌ حدث خطأ أثناء جلب البيانات من Supabase:', error));
+
+// أ) تجهيز الماركات وحفظ الـ IDs
+makesData.forEach(make => {
+  MAKE_NAME_TO_ID[make.make_name] = make.id; // حفظ الـ ID
+  makeMap[make.id] = make.make_name;
+  CAR_DATA[make.make_name] = [];
+});
+
+// دالة موحدة لإضافة بيانات جديدة إلى قاعدة البيانات
+async function insertToDB(tableName, record) {
+  try {
+    const response = await fetch(`${SUPABASE_URL_BASE}/${tableName}`, {
+      method: 'POST',
+      headers: {
+        ...HEADERS,
+        'Prefer': 'return=minimal' // لا نحتاج لعودة البيانات، فقط تأكيد الإضافة
+      },
+      body: JSON.stringify(record)
+    });
+
+    if (response.ok) {
+      console.log(`✅ تم الإضافة بنجاح إلى جدول ${tableName}`);
+      return true;
+    } else {
+      console.error(`❌ فشل الإضافة إلى ${tableName}`);
+      return false;
+    }
+  } catch (error) {
+    console.error('Network Error:', error);
+    return false;
+  }
+}
+
+
+// متغير عالمي لنحفظ فيه الألوان المحملة حالياً (يجب أن تعرفه فوق مع PDB)
+let loadedColors = []; 
+
+// ملاحظة: تأكد من تحديث مصفوفة loadedColors داخل دالة Promise.all عند جلب الألوان
+
+async function checkNewColor(colorName) {
+  if (!colorName) return; // إذا كان الحقل فارغاً، لا تفعل شيئاً
+  
+  // إذا لم يكن اللون موجوداً في القائمة الحالية المحملة من الداتا بيس
+  if (!loadedColors.includes(colorName)) {
+    const confirmAdd = confirm(`اللون "${colorName}" غير موجود في النظام. هل تريد إضافته لقاعدة البيانات؟`);
+    
+    if (confirmAdd) {
+      // إرسال اللون إلى Supabase
+      const success = await insertToDB('colors', { color_name: colorName });
+      if (success) {
+        loadedColors.push(colorName); // إضافته للمصفوفة المحلية حتى لا يسأل عنه مجدداً
+        // تحديث الـ datalist فوراً
+        const opt = document.createElement('option');
+        opt.value = colorName;
+        document.getElementById('list-colors').appendChild(opt);
+      }
+    }
+  }
+}
+
+// فحص وإضافة نوع سيارة جديد (Make)
+async function checkNewMake(makeName) {
+  if (!makeName) return;
+  
+  if (!CAR_DATA[makeName]) { // إذا كان النوع غير موجود نهائياً
+    const confirmAdd = confirm(`نوع المركبة "${makeName}" غير موجود. هل تريد إضافته كماركة جديدة في النظام؟`);
+    
+    if (confirmAdd) {
+      const inserted = await insertAndReturnDB('car_makes', { make_name: makeName });
+      if (inserted) {
+        CAR_DATA[makeName] = []; // إنشاء مصفوفة أصناف فارغة له
+        MAKE_NAME_TO_ID[makeName] = inserted.id; // حفظ الـ ID الجديد الذي أعطته الداتا بيس
+        
+        // تحديث قائمة الأنواع (datalist)
+        const opt = document.createElement('option');
+        opt.value = makeName;
+        document.getElementById('list-makes').appendChild(opt);
+        console.log(`✅ تم إضافة النوع "${makeName}" بنجاح.`);
+      }
+    }
+  }
+}
+
+// فحص وإضافة صنف سيارة جديد (Model)
+async function checkNewModel(modelName) {
+  if (!modelName) return;
+  
+  // يجب معرفة ما هو النوع المكتوب حالياً لربط الصنف به
+  const currentMake = document.getElementById('f-vtype').value;
+  
+  if (!currentMake || !CAR_DATA[currentMake]) {
+    alert("الرجاء التأكد من إدخال نوع مركبة صحيح أولاً قبل إضافة صنف جديد.");
+    return;
+  }
+
+  // إذا كان الصنف غير موجود داخل مصفوفة هذا النوع
+  if (!CAR_DATA[currentMake].includes(modelName)) {
+    const confirmAdd = confirm(`الصنف "${modelName}" غير موجود تحت نوع "${currentMake}". هل تريد إضافته للنظام؟`);
+    
+    if (confirmAdd) {
+      const makeId = MAKE_NAME_TO_ID[currentMake]; // جلب رقم الماركة للربط
+      const inserted = await insertAndReturnDB('car_models', { make_id: makeId, model_name: modelName });
+      
+      if (inserted) {
+        CAR_DATA[currentMake].push(modelName); // إضافته للمصفوفة محلياً
+        
+        // تحديث قائمة الأصناف (datalist)
+        const opt = document.createElement('option');
+        opt.value = modelName;
+        document.getElementById('list-models').appendChild(opt);
+        console.log(`✅ تم إضافة الصنف "${modelName}" بنجاح.`);
+      }
+    }
+  }
+}
+async function checkNewPart(partName) {
+  if (!partName) return;
+  
+  if (!PDB.includes(partName)) {
+    const confirmAdd = confirm(`القطعة "${partName}" جديدة. هل تريد حفظها في النظام لتظهر في المرات القادمة؟`);
+    if (confirmAdd) {
+      const success = await insertToDB('parts', { part_name: partName, default_price: 0 });
+      if (success) {
+        PDB.push(partName); // تحديث المصفوفة محلياً
+      }
+    }
+  }
+
+  
+}
+
+// دالة الإضافة الذكية التي تُرجع البيانات المُضافة (بما فيها الـ ID الجديد)
+async function insertAndReturnDB(tableName, record) {
+  try {
+    const response = await fetch(`${SUPABASE_URL_BASE}/${tableName}`, {
+      method: 'POST',
+      headers: {
+        ...HEADERS,
+        'Prefer': 'return=representation' // هذا السطر يجبر Supabase على إرجاع السطر الجديد
+      },
+      body: JSON.stringify(record)
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return data[0]; // إرجاع الكائن المُضاف
+    } else {
+      console.error(`❌ فشل الإضافة إلى ${tableName}`);
+      return null;
+    }
+  } catch (error) {
+    console.error('Network Error:', error);
+    return null;
+  }
+}
 // 1. دالة لتعبئة أنواع السيارات (تعمل مرة واحدة عند بداية التشغيل)
 function fillMakesDatalist() {
   const dl = document.getElementById('list-makes');

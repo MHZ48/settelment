@@ -62,12 +62,19 @@
       <div class="r2">
 <div class="fg">
   <label>نوع المركبة</label>
-  <input type="text" id="f-vtype" list="list-makes" oninput="onMakeInput(this.value)" placeholder="ابحث أو أدخل النوع...">
+  <input type="text" id="f-vtype" list="list-makes" 
+         oninput="onMakeInput(this.value)" 
+         onblur="checkNewMake(this.value)" 
+         placeholder="ابحث أو أدخل النوع...">
   <datalist id="list-makes"></datalist>
 </div>
-     <div class="fg">
+
+<div class="fg">
   <label>صنف المركبة</label>
-  <input type="text" id="f-vcls" list="list-models" oninput="onMakeInput(this.value)" placeholder="ابحث أو أدخل الصنف...">
+  <input type="text" id="f-vcls" list="list-models" 
+         oninput="S('vcls', this.value)" 
+         onblur="checkNewModel(this.value)" 
+         placeholder="ابحث أو أدخل الصنف...">
   <datalist id="list-models"></datalist>
 </div>
       </div>
@@ -79,8 +86,11 @@
       </div>
     <div class="fg">
   <label>لون المركبة</label>
-  <input type="text" id="f-vcolor" list="list-colors" oninput="S('vcolor', this.value)" placeholder="ابحث أو أدخل اللون...">
-  <datalist id="list-colors"></datalist>
+<input type="text" id="f-vcolor" list="list-colors" 
+       oninput="S('vcolor', this.value)" 
+       onblur="checkNewColor(this.value)" 
+       placeholder="ابحث أو أدخل اللون...">
+         <datalist id="list-colors"></datalist>
   </div>
       </div>
 <div class="fg">
@@ -120,7 +130,7 @@
   <div class="st" onclick="tog(this)"><span>٤. جدول القطع</span><span class="arr">▼</span></div>
   <div class="sb">
     <div class="psb">
-      <input type="text" id="psearch" placeholder="ابحث أو أدخل اسم قطعة..." oninput="filterP(this.value)">
+      <input type="text" id="psearch" placeholder="ابحث أو أدخل اسم قطعة..." oninput="filterP(this.value)" onblur="checkNewPart(this.value)">
       <button class="bsm badd" onclick="addCustomP()">+ أضف</button>
     </div>
     <div class="plist" id="plist"></div>
