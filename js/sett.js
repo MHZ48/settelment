@@ -6,60 +6,80 @@ let CAR_DATA = {};
 let fp = [];
 let leftInd=36, rightInd=36;
 // ═══════════════════════════════════════════
-// FETCH DATA FROM JSON
+// FETCH DATA FROM SUPABASE
 // ═══════════════════════════════════════════
-// 1. إعدادات الاتصال بـ Supabase (لاحظ أننا أضفنا اسم الجدول cars_data)
-const SUPABASE_URL = 'https://dwhckbcrlgjesxniqmmr.supabase.co/rest/v1/cars_data?select=*';
+const SUPABASE_URL_BASE = 'https://dwhckbcrlgjesxniqmmr.supabase.co/rest/v1';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3aGNrYmNybGdqZXN4bmlxbW1yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzNTI5MDMsImV4cCI6MjA5MDkyODkwM30.8rkrHvEUttojlRwR1mBfOA2zhw7zlNs9bAakbpxFaGE';
 
-// 2. جلب البيانات من جدول السيارات
-fetch(SUPABASE_URL, {
-  method: 'GET',
-  headers: {
-    'apikey': SUPABASE_KEY,
-    'Authorization': `Bearer ${SUPABASE_KEY}`,
-    'Content-Type': 'application/json'
-  }
-})
-  .then(response => {
-    if (!response.ok) throw new Error('Network response was not ok');
-    return response.json();
-  })
-  .then(supabaseData => {
-    
-    // 3. تحويل البيانات من شكل جدول Supabase إلى كائن (Object) يفهمه الكود
-    CAR_DATA = {};
-    supabaseData.forEach(row => {
-      // التأكد من أن الأصناف يتم قراءتها كمصفوفة (Array)
-      let modelsArray = row.models;
-      if (typeof modelsArray === 'string') {
-        try {
-          modelsArray = JSON.parse(modelsArray);
-        } catch (e) {
-          modelsArray = [modelsArray]; // في حال كان نصاً عادياً وليس JSON
-        }
-      }
-      CAR_DATA[row.type] = modelsArray;
-    });
+const HEADERS = {
+  'apikey': SUPABASE_KEY,
+  'Authorization': `Bearer ${SUPABASE_KEY}`,
+  'Content-Type': 'application/json'
+};
 
-    // --- كود دمج السيارات المخصصة المحفوظة في المتصفح ---
-    const customCarData = JSON.parse(localStorage.getItem('CUSTOM_CAR_DATA'));
-    if (customCarData) {
-      for (const make in customCarData) {
-        if (CAR_DATA[make]) {
-          CAR_DATA[make] = [...new Set([...CAR_DATA[make], ...customCarData[make]])];
-        } else {
-          CAR_DATA[make] = customCarData[make];
-        }
+// جلب جميع البيانات من الجداول الخمسة في نفس اللحظة لتسريع التطبيق
+Promise.all([
+  fetch(`${SUPABASE_URL_BASE}/car_makes?select=*`, { headers: HEADERS }).then(r => r.json()),
+  fetch(`${SUPABASE_URL_BASE}/car_models?select=*`, { headers: HEADERS }).then(r => r.json()),
+  fetch(`${SUPABASE_URL_BASE}/colors?select=*`, { headers: HEADERS }).then(r => r.json()),
+  fetch(`${SUPABASE_URL_BASE}/registration_types?select=*`, { headers: HEADERS }).then(r => r.json()),
+  fetch(`${SUPABASE_URL_BASE}/parts?select=*`, { headers: HEADERS }).then(r => r.json())
+])
+.then(([makesData, modelsData, colorsData, regData, partsData]) => {
+  
+  // 1. معالجة السيارات: دمج الماركات مع أصنافها في كائن CAR_DATA
+  CAR_DATA = {};
+  const makeMap = {}; // خريطة مساعدة لربط الـ ID باسم الماركة
+
+  // أ) تجهيز الماركات
+  makesData.forEach(make => {
+    makeMap[make.id] = make.make_name;
+    CAR_DATA[make.make_name] = []; // مصفوفة فارغة لكل ماركة
+  });
+
+  // ب) توزيع الأصناف داخل ماركاتها بناءً على make_id
+  modelsData.forEach(model => {
+    const makeName = makeMap[model.make_id];
+    if (makeName) {
+      CAR_DATA[makeName].push(model.model_name);
+    }
+  });
+
+  // ج) دمج السيارات المخصصة المحفوظة في المتصفح (كما كان في الكود الأصلي)
+  const customCarData = JSON.parse(localStorage.getItem('CUSTOM_CAR_DATA'));
+  if (customCarData) {
+    for (const make in customCarData) {
+      if (CAR_DATA[make]) {
+        CAR_DATA[make] = [...new Set([...CAR_DATA[make], ...customCarData[make]])];
+      } else {
+        CAR_DATA[make] = customCarData[make];
       }
     }
-    
-    // 4. استدعاء دالة تعبئة أنواع السيارات (الآن CAR_DATA جاهزة!)
-    fillMakesDatalist(); 
-    
-  })
-  .catch(error => console.error('Error loading cars data from Supabase:', error));
+  }
+  // تشغيل دالة الفلترة للسيارات
+  if (typeof fillMakesDatalist === 'function') fillMakesDatalist();
 
+  // 2. معالجة وتعبئة الألوان
+  if (colorsData && typeof fillColorsDatalist === 'function') {
+    const allColors = colorsData.map(row => row.color_name);
+    fillColorsDatalist(allColors);
+  }
+
+  // 3. معالجة وتعبئة صفات التسجيل
+  if (regData && typeof fillRegSelect === 'function') {
+    const allRegTypes = regData.map(row => row.type_name);
+    fillRegSelect(allRegTypes);
+  }
+
+  // 4. معالجة قطع الغيار (PDB)
+  if (partsData) {
+    PDB = partsData.map(row => row.part_name);
+  }
+
+  console.log("✅ تم تحميل جميع البيانات من Supabase بنجاح ورطها بالتطبيق!");
+
+})
+.catch(error => console.error('❌ حدث خطأ أثناء جلب البيانات من Supabase:', error));
 // 1. دالة لتعبئة أنواع السيارات (تعمل مرة واحدة عند بداية التشغيل)
 function fillMakesDatalist() {
   const dl = document.getElementById('list-makes');
