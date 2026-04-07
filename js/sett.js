@@ -79,15 +79,16 @@ Promise.all([
 
   console.log("✅ تم تحميل جميع البيانات من Supabase بنجاح ورطها بالتطبيق!");
 
-})
-.catch(error => console.error('❌ حدث خطأ أثناء جلب البيانات من Supabase:', error));
-
-// أ) تجهيز الماركات وحفظ الـ IDs
+  // أ) تجهيز الماركات وحفظ الـ IDs
 makesData.forEach(make => {
   MAKE_NAME_TO_ID[make.make_name] = make.id; // حفظ الـ ID
   makeMap[make.id] = make.make_name;
   CAR_DATA[make.make_name] = [];
 });
+})
+.catch(error => console.error('❌ حدث خطأ أثناء جلب البيانات من Supabase:', error));
+
+
 
 // دالة موحدة لإضافة بيانات جديدة إلى قاعدة البيانات
 async function insertToDB(tableName, record) {
@@ -141,57 +142,93 @@ async function checkNewColor(colorName) {
   }
 }
 
-// فحص وإضافة نوع سيارة جديد (Make)
+// دالة الإضافة الشاملة
+async function insertAndReturnDB(tableName, record) {
+  try {
+    const response = await fetch(`${SUPABASE_URL_BASE}/${tableName}`, {
+      method: 'POST',
+      headers: {
+        ...HEADERS,
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify(record)
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      console.error("Supabase Error:", err);
+      return null;
+    }
+
+    const data = await response.json();
+    return data[0];
+  } catch (error) {
+    console.error('Network Error:', error);
+    return null;
+  }
+}
+
+// إضافة ماركة جديدة (تويوتا، كيا...)
 async function checkNewMake(makeName) {
-  if (!makeName) return;
-  
-  if (!CAR_DATA[makeName]) { // إذا كان النوع غير موجود نهائياً
-    const confirmAdd = confirm(`نوع المركبة "${makeName}" غير موجود. هل تريد إضافته كماركة جديدة في النظام؟`);
-    
-    if (confirmAdd) {
-      const inserted = await insertAndReturnDB('car_makes', { make_name: makeName });
-      if (inserted) {
-        CAR_DATA[makeName] = []; // إنشاء مصفوفة أصناف فارغة له
-        MAKE_NAME_TO_ID[makeName] = inserted.id; // حفظ الـ ID الجديد الذي أعطته الداتا بيس
-        
-        // تحديث قائمة الأنواع (datalist)
+  if (!makeName || CAR_DATA[makeName]) return;
+
+  if (confirm(`نوع المركبة "${makeName}" جديد، هل تريد إضافته للنظام؟`)) {
+    const inserted = await insertAndReturnDB('car_makes', { make_name: makeName });
+    if (inserted) {
+      CAR_DATA[makeName] = [];
+      MAKE_NAME_TO_ID[makeName] = inserted.id;
+      // تحديث القائمة المنسدلة فوراً
+      const dl = document.getElementById('list-makes');
+      if(dl){
         const opt = document.createElement('option');
         opt.value = makeName;
-        document.getElementById('list-makes').appendChild(opt);
-        console.log(`✅ تم إضافة النوع "${makeName}" بنجاح.`);
+        dl.appendChild(opt);
       }
+      alert("✅ تم إضافة النوع بنجاح");
     }
   }
 }
 
-// فحص وإضافة صنف سيارة جديد (Model)
+// إضافة موديل جديد (كامري، سيراتو...)
 async function checkNewModel(modelName) {
   if (!modelName) return;
-  
-  // يجب معرفة ما هو النوع المكتوب حالياً لربط الصنف به
+
+  // جلب النوع المكتوب حالياً في خانة "نوع المركبة"
   const currentMake = document.getElementById('f-vtype').value;
   
   if (!currentMake || !CAR_DATA[currentMake]) {
-    alert("الرجاء التأكد من إدخال نوع مركبة صحيح أولاً قبل إضافة صنف جديد.");
+    console.warn("لم يتم اختيار نوع مركبة صحيح بعد.");
     return;
   }
 
-  // إذا كان الصنف غير موجود داخل مصفوفة هذا النوع
+  // إذا كان الموديل غير موجود في القائمة المحلية
   if (!CAR_DATA[currentMake].includes(modelName)) {
-    const confirmAdd = confirm(`الصنف "${modelName}" غير موجود تحت نوع "${currentMake}". هل تريد إضافته للنظام؟`);
-    
-    if (confirmAdd) {
-      const makeId = MAKE_NAME_TO_ID[currentMake]; // جلب رقم الماركة للربط
-      const inserted = await insertAndReturnDB('car_models', { make_id: makeId, model_name: modelName });
+    if (confirm(`هل تريد إضافة الموديل "${modelName}" لسيارات "${currentMake}"؟`)) {
       
+      const makeId = MAKE_NAME_TO_ID[currentMake];
+      
+      if (!makeId) {
+        alert("حدث خطأ: لم يتم العثور على رقم الماركة في النظام. جرب إعادة تحميل الصفحة.");
+        return;
+      }
+
+      // إرسال الطلب لجدول car_models
+      const inserted = await insertAndReturnDB('car_models', { 
+        make_id: makeId, 
+        model_name: modelName 
+      });
+
       if (inserted) {
-        CAR_DATA[currentMake].push(modelName); // إضافته للمصفوفة محلياً
+        CAR_DATA[currentMake].push(modelName);
         
-        // تحديث قائمة الأصناف (datalist)
-        const opt = document.createElement('option');
-        opt.value = modelName;
-        document.getElementById('list-models').appendChild(opt);
-        console.log(`✅ تم إضافة الصنف "${modelName}" بنجاح.`);
+        // تحديث الـ datalist الخاص بالموديلات فوراً
+        const dl = document.getElementById('list-models');
+        if (dl) {
+          const opt = document.createElement('option');
+          opt.value = modelName;
+          dl.appendChild(opt);
+        }
+        alert("✅ تم إضافة الموديل الجديد بنجاح");
       }
     }
   }
@@ -212,30 +249,7 @@ async function checkNewPart(partName) {
   
 }
 
-// دالة الإضافة الذكية التي تُرجع البيانات المُضافة (بما فيها الـ ID الجديد)
-async function insertAndReturnDB(tableName, record) {
-  try {
-    const response = await fetch(`${SUPABASE_URL_BASE}/${tableName}`, {
-      method: 'POST',
-      headers: {
-        ...HEADERS,
-        'Prefer': 'return=representation' // هذا السطر يجبر Supabase على إرجاع السطر الجديد
-      },
-      body: JSON.stringify(record)
-    });
 
-    if (response.ok) {
-      const data = await response.json();
-      return data[0]; // إرجاع الكائن المُضاف
-    } else {
-      console.error(`❌ فشل الإضافة إلى ${tableName}`);
-      return null;
-    }
-  } catch (error) {
-    console.error('Network Error:', error);
-    return null;
-  }
-}
 // 1. دالة لتعبئة أنواع السيارات (تعمل مرة واحدة عند بداية التشغيل)
 function fillMakesDatalist() {
   const dl = document.getElementById('list-makes');
