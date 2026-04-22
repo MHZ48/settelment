@@ -356,75 +356,103 @@ function checkOverflow() {
   setTimeout(_doCheckOverflow, 100);
 }
 
+function _dconOverflows(dcon) {
+  // With overflow:hidden on dcon, scrollHeight reliably exceeds clientHeight
+  // when content is taller than the flex-allocated content area.
+  return dcon.scrollHeight > dcon.clientHeight + 2;
+}
+
 function _doCheckOverflow() {
   _overflowPending = false;
-  const doc = document.getElementById('doc');
-  const firstDcon = document.getElementById('dcon');
-  if (!firstDcon) return;
+  // Use rAF so all DOM mutations are painted and layout is settled
+  // before we take any measurements.
+  requestAnimationFrame(() => {
+    const doc = document.getElementById('doc');
+    const firstDcon = document.getElementById('dcon');
+    if (!firstDcon) return;
 
-  // Build ordered list of all content containers across pages
-  const dcons = [firstDcon, ...doc.querySelectorAll('.p-dcon')];
+    // Snapshot of all content containers in page order
+    const dcons = [firstDcon, ...doc.querySelectorAll('.p-dcon')];
 
-  for (let i = 0; i < dcons.length; i++) {
-    const dcon = dcons[i];
+    for (let i = 0; i < dcons.length; i++) {
+      const dcon = dcons[i];
 
-    // Phase 1: Push overflowing content down to the next page
-    while (dcon.scrollHeight > dcon.clientHeight + 2) {
-      const lastChild = dcon.lastElementChild;
-      if (!lastChild) break;
+      // ── Phase 1: push overflowing children to the next page ──────────
+      while (_dconOverflows(dcon)) {
+        const lastChild = dcon.lastElementChild;
+        if (!lastChild) break;               // nothing left to move
 
-      let nextDcon = dcons[i + 1];
-      if (!nextDcon) {
-        const newPage = createNewPage();
-        doc.appendChild(newPage);
-        nextDcon = newPage.querySelector('.p-dcon');
-        dcons.push(nextDcon);
+        let nextDcon = dcons[i + 1];
+        if (!nextDcon) {
+          // Dynamically create a new page with matching header & footer
+          const newPage = createNewPage();
+          doc.appendChild(newPage);
+          nextDcon = newPage.querySelector('.p-dcon');
+          dcons.push(nextDcon);
+        }
+
+        // Prepend to next page so reading order is preserved
+        nextDcon.insertBefore(lastChild, nextDcon.firstChild);
       }
 
-      nextDcon.insertBefore(lastChild, nextDcon.firstChild);
-    }
-
-    // Phase 2: Pull content back from next page if it fits on this page
-    const nextDcon = dcons[i + 1];
-    if (nextDcon) {
-      while (nextDcon.firstElementChild) {
-        const firstOfNext = nextDcon.firstElementChild;
-        dcon.appendChild(firstOfNext);
-        if (dcon.scrollHeight > dcon.clientHeight + 2) {
-          // Doesn't fit — move it back
-          dcon.removeChild(firstOfNext);
-          nextDcon.insertBefore(firstOfNext, nextDcon.firstChild);
-          break;
+      // ── Phase 2: reclaim space from next page if room allows ─────────
+      const nextDcon = dcons[i + 1];
+      if (nextDcon) {
+        while (nextDcon.firstElementChild) {
+          const candidate = nextDcon.firstElementChild;
+          dcon.appendChild(candidate);          // trial: move it here
+          if (_dconOverflows(dcon)) {
+            // Doesn't fit — restore to top of next page
+            dcon.removeChild(candidate);
+            nextDcon.insertBefore(candidate, nextDcon.firstChild);
+            break;
+          }
+          // Fits — keep it here and try the next child
         }
       }
     }
-  }
 
-  // Remove any now-empty extra pages (never remove the first page-wrap)
-  doc.querySelectorAll('.page-wrap').forEach((wrap, idx) => {
-    if (idx === 0) return;
-    const dc = wrap.querySelector('.p-dcon');
-    if (dc && dc.children.length === 0) wrap.remove();
+    // ── Cleanup: remove now-empty extra pages ─────────────────────────
+    doc.querySelectorAll('.page-wrap').forEach((wrap, idx) => {
+      if (idx === 0) return;                   // never remove the first page
+      const dc = wrap.querySelector('.p-dcon');
+      if (dc && dc.children.length === 0) wrap.remove();
+    });
   });
 }
 
 function createNewPage() {
   const hSrc = document.getElementById('himg')?.src || '';
   const fSrc = document.getElementById('fimg')?.src || '';
+  const wmSrc = document.getElementById('wm')?.src  || '';
+
   const wrap = document.createElement('div');
   wrap.className = 'page-wrap';
+
   const pg = document.createElement('div');
   pg.className = 'p-page';
+
+  // Watermark — same position/style as #wm on page 1
+  if (wmSrc) {
+    const wm = document.createElement('img');
+    wm.src = wmSrc;
+    wm.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-25deg);pointer-events:none;opacity:.07;z-index:0;width:400px;height:400px;object-fit:contain';
+    pg.appendChild(wm);
+  }
+
   const hi = document.createElement('img');
   hi.className = 'p-himg';
   hi.src = hSrc;
+
   const dc = document.createElement('div');
   dc.className = 'p-dcon';
   dc.contentEditable = 'true';
   dc.setAttribute('spellcheck', 'false');
+
   const fi = document.createElement('img');
   fi.className = 'p-fimg';
   fi.src = fSrc;
+
   pg.append(hi, dc, fi);
   wrap.appendChild(pg);
   return wrap;
