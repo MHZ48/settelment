@@ -256,8 +256,7 @@ function fillMakesDatalist() {
   if (!dl) return; // للتأكد من وجود العنصر
   
   dl.innerHTML = '';
-  // قراءة كل الأنواع من بيانات data.json
-  Object.keys(CAR_DATA).forEach(make => {
+  Object.keys(CAR_DATA).sort((a, b) => a.localeCompare(b, 'ar')).forEach(make => {
     const opt = document.createElement('option');
     opt.value = make;
     dl.appendChild(opt);
@@ -275,8 +274,7 @@ function onMakeInput(val) {
   
   // إذا كان النوع الذي كتبه المستخدم موجوداً في data.json
   if (CAR_DATA[val]) {
-    // تعبئة قائمة الأصناف الخاصة بهذا النوع فقط
-    CAR_DATA[val].forEach(model => {
+    [...CAR_DATA[val]].sort((a, b) => a.localeCompare(b, 'ar')).forEach(model => {
       const opt = document.createElement('option');
       opt.value = model;
       modelDl.appendChild(opt);
@@ -289,9 +287,8 @@ function fillColorsDatalist(colorsArray) {
   const dl = document.getElementById('list-colors');
   if (!dl || !colorsArray) return;
   
-  dl.innerHTML = ''; // تفريغ القائمة
-  
-  colorsArray.forEach(color => {
+  dl.innerHTML = '';
+  [...colorsArray].sort((a, b) => a.localeCompare(b, 'ar')).forEach(color => {
     const opt = document.createElement('option');
     opt.value = color;
     dl.appendChild(opt);
@@ -305,11 +302,10 @@ function fillRegSelect(regArray) {
   // تفريغ القائمة مع الإبقاء على الخيار الافتراضي
   sel.innerHTML = '<option value="">اختر صفة التسجيل...</option>';
   
-  // المرور على المصفوفة وإضافة الخيارات
-  regArray.forEach(reg => {
+  [...regArray].sort((a, b) => a.localeCompare(b, 'ar')).forEach(reg => {
     const opt = document.createElement('option');
     opt.value = reg;
-    opt.textContent = reg; // هذا ما سيظهر للمستخدم في القائمة المنسدلة
+    opt.textContent = reg;
     sel.appendChild(opt);
   });
 }
@@ -321,7 +317,7 @@ function initCarSelects(){
   // Clear any existing options first
   makeSelect.innerHTML = '<option value="">اختر الصنف...</option>'; 
   
-  Object.keys(CAR_DATA).sort().forEach(make => {
+  Object.keys(CAR_DATA).sort((a, b) => a.localeCompare(b, 'ar')).forEach(make => {
     const opt = document.createElement('option');
     opt.value = make; 
     opt.textContent = make;
@@ -839,7 +835,7 @@ function fl(el){el.classList.remove('sf');void el.offsetWidth;el.classList.add('
 // ═══════════════════════════════════════════
 function filterP(q){
     if (!PDB || PDB.length === 0) return;
-  fp=q.trim()?PDB.filter(p=>p.includes(q.trim())):PDB.slice();
+  fp=(q.trim()?PDB.filter(p=>p.includes(q.trim())):PDB.slice()).sort((a,b)=>a.localeCompare(b,'ar'));
   renderPL();
   document.getElementById('plist').classList.toggle('vis',q.trim().length>0);
 }
@@ -859,7 +855,7 @@ function filterSub(q,i,j){
   const list=document.getElementById(listId);
   if(!list) return;
   if(!q.trim()){list.style.display='none';return;}
-  const res=PDB.filter(p=>p.includes(q.trim())).slice(0,10);
+  const res=PDB.filter(p=>p.includes(q.trim())).sort((a,b)=>a.localeCompare(b,'ar')).slice(0,10);
   list.innerHTML=res.map(p=>`<div class="popt" onmousedown="event.preventDefault()" onclick="selSub('${escH(p)}',${i},${j})">${escH(p)}</div>`).join('');
   list.style.display=res.length?'block':'none';
 }
