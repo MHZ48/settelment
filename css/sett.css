@@ -89,10 +89,17 @@ html,body{height:100%;font-family:'Tajawal',sans-serif;direction:rtl;background:
 .tbb.act{background:var(--grn);color:#fff;border-color:var(--grn2)}
 
 /* PAGE */
-#page{background:#fff;width:100%;max-width:860px;min-height:1100px;box-shadow:0 4px 24px rgba(0,0,0,.45);border-radius:0 0 4px 4px;position:relative;overflow:hidden;display:flex;flex-direction:column}
+#page{background:#fff;width:100%;max-width:860px;height:1100px;box-shadow:0 4px 24px rgba(0,0,0,.45);border-radius:0 0 4px 4px;position:relative;overflow:hidden;display:flex;flex-direction:column}
 #wm{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-25deg);pointer-events:none;opacity:.07;z-index:0;width:400px;height:400px;object-fit:contain}
 #himg{width:100%;display:block;z-index:2;position:relative}
 #fimg{width:100%;display:block;z-index:2;position:relative;margin-top:auto}
+
+/* EXTRA PAGES (page 2, 3, …) */
+.p-page{background:#fff;width:100%;max-width:860px;height:1100px;box-shadow:0 4px 24px rgba(0,0,0,.45);border-radius:4px;position:relative;overflow:hidden;display:flex;flex-direction:column}
+.p-himg{width:100%;display:block;z-index:2;position:relative}
+.p-fimg{width:100%;display:block;z-index:2;position:relative;margin-top:auto}
+.p-dcon{position:relative;z-index:1;padding:4px 36px 12px;direction:rtl;font-family:'Tajawal',sans-serif;font-size:13px;color:#111;line-height:1.7;flex:1;outline:none}
+.p-dcon:focus{outline:none}
 
 /* CONTENT */
 #dcon{position:relative;z-index:1;padding:4px 36px 12px;direction:rtl;font-family:'Tajawal',sans-serif;font-size:13px;color:#111;line-height:1.7;flex:1;outline:none}
@@ -136,6 +143,11 @@ hr.sd{border:none;border-top:1.5px solid #888;margin:8px 0}
   #hdr,#form,#rwrap,#tb,#modal{display:none!important}
   #body{display:block}
   #doc{padding:0;background:#fff}
-  #page{box-shadow:none;max-width:100%;border-radius:0}
-  #dcon{padding:4px 30px}
+  #page,.p-page{box-shadow:none;max-width:100%;border-radius:0}
+  #dcon,.p-dcon{padding:4px 30px}
+  .page-wrap+.page-wrap{page-break-before:always}
 }
+.page-wrap { width: 100%; max-width: 860px; }
+.page-wrap + .page-wrap { margin-top: 10px; }
+/* pages after first get new IDs to avoid duplicate IDs */
+.page-wrap:not(:first-child) #page { border-radius: 4px; }

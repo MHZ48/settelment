@@ -328,7 +328,107 @@ function initCarSelects(){
     makeSelect.appendChild(opt);
   });
 }
+// ── PAGINATION: general overflow-based page splitting ──────────────────
 
+// Wrap the taqabul heading + all siblings into one moveable unit
+function wrapTaqabulSection() {
+  const dcon    = document.getElementById('dcon');
+  const heading = dcon && dcon.querySelector('.taqabul-section');
+  if (!heading || document.getElementById('taqabul-wrap')) return;
+  const wrap = document.createElement('div');
+  wrap.id = 'taqabul-wrap';
+  dcon.insertBefore(wrap, heading);
+  let el = heading;
+  while (el) {
+    const next = el.nextElementSibling;
+    wrap.appendChild(el);
+    el = next;
+  }
+}
+
+let _overflowPending = false;
+
+function checkTaqabul() { checkOverflow(); }
+
+function checkOverflow() {
+  if (_overflowPending) return;
+  _overflowPending = true;
+  setTimeout(_doCheckOverflow, 100);
+}
+
+function _doCheckOverflow() {
+  _overflowPending = false;
+  const doc = document.getElementById('doc');
+  const firstDcon = document.getElementById('dcon');
+  if (!firstDcon) return;
+
+  // Build ordered list of all content containers across pages
+  const dcons = [firstDcon, ...doc.querySelectorAll('.p-dcon')];
+
+  for (let i = 0; i < dcons.length; i++) {
+    const dcon = dcons[i];
+
+    // Phase 1: Push overflowing content down to the next page
+    while (dcon.scrollHeight > dcon.clientHeight + 2) {
+      const lastChild = dcon.lastElementChild;
+      if (!lastChild) break;
+
+      let nextDcon = dcons[i + 1];
+      if (!nextDcon) {
+        const newPage = createNewPage();
+        doc.appendChild(newPage);
+        nextDcon = newPage.querySelector('.p-dcon');
+        dcons.push(nextDcon);
+      }
+
+      nextDcon.insertBefore(lastChild, nextDcon.firstChild);
+    }
+
+    // Phase 2: Pull content back from next page if it fits on this page
+    const nextDcon = dcons[i + 1];
+    if (nextDcon) {
+      while (nextDcon.firstElementChild) {
+        const firstOfNext = nextDcon.firstElementChild;
+        dcon.appendChild(firstOfNext);
+        if (dcon.scrollHeight > dcon.clientHeight + 2) {
+          // Doesn't fit — move it back
+          dcon.removeChild(firstOfNext);
+          nextDcon.insertBefore(firstOfNext, nextDcon.firstChild);
+          break;
+        }
+      }
+    }
+  }
+
+  // Remove any now-empty extra pages (never remove the first page-wrap)
+  doc.querySelectorAll('.page-wrap').forEach((wrap, idx) => {
+    if (idx === 0) return;
+    const dc = wrap.querySelector('.p-dcon');
+    if (dc && dc.children.length === 0) wrap.remove();
+  });
+}
+
+function createNewPage() {
+  const hSrc = document.getElementById('himg')?.src || '';
+  const fSrc = document.getElementById('fimg')?.src || '';
+  const wrap = document.createElement('div');
+  wrap.className = 'page-wrap';
+  const pg = document.createElement('div');
+  pg.className = 'p-page';
+  const hi = document.createElement('img');
+  hi.className = 'p-himg';
+  hi.src = hSrc;
+  const dc = document.createElement('div');
+  dc.className = 'p-dcon';
+  dc.contentEditable = 'true';
+  dc.setAttribute('spellcheck', 'false');
+  const fi = document.createElement('img');
+  fi.className = 'p-fimg';
+  fi.src = fSrc;
+  pg.append(hi, dc, fi);
+  wrap.appendChild(pg);
+  return wrap;
+}
 let parts=[], repairs=[{name:'تركيب القطع'},{name:'دهان مكان الحادث'}], priors=[], afters=[], claimPrices=[], syncing=false;
 
 // ═══════════════════════════════════════════
@@ -904,6 +1004,7 @@ function updCTbl(){
 
   // update form panel list
   renderClaimPriceList();
+  checkTaqabul();
 }
 
 function renderClaimPriceList(){
@@ -984,6 +1085,7 @@ function updRepairTbl(){
   const tbody=document.getElementById('repairs-tbody');
   if(!tbody) return;
   tbody.innerHTML=repairs.map(r=>`<tr><td style="text-align:right;font-weight:700">${escH(r.name)}</td></tr>`).join('');
+  checkTaqabul();
 }
 
 
@@ -1198,13 +1300,14 @@ function clearPriorPts(i){
 function renderDocPriors(){
   const sec=document.getElementById('d-prior-sec');
   const rows=document.getElementById('d-prior-rows');
-  if(!priors.length){sec.style.display='none';return}
+  if(!priors.length){sec.style.display='none';checkTaqabul();return}
   sec.style.display='';
   rows.innerHTML=priors.map(p=>{
     const dmg=Array.isArray(p.damage)?p.damage.join('+'):(p.damage||'___');
     return `<div class="il">حادث وقع بتاريخ <b>${p.date||'___'}</b> وكانت الاضرار <span class="pdmg">${dmg||'___'}</span></div>`;
   }).join('');
   chkConf();
+  checkTaqabul();
 }
 
 // ═══════════════════════════════════════════
@@ -1272,12 +1375,13 @@ function clearAfterPts(i){
 function renderDocAfters(){
   const sec=document.getElementById('d-after-sec');
   const rows=document.getElementById('d-after-rows');
-  if(!afters.length){sec.style.display='none';return}
+  if(!afters.length){sec.style.display='none';checkTaqabul();return}
   sec.style.display='';
   rows.innerHTML=afters.map(p=>{
     const dmg=Array.isArray(p.damage)?p.damage.join('+'):(p.damage||'___');
     return `<div class="il">حادث وقع بتاريخ <b>${p.date||'___'}</b> وكانت الاضرار <span>${dmg||'___'}</span></div>`;
   }).join('');
+  checkTaqabul();
 }
 
 // ═══════════════════════════════════════════
@@ -1391,6 +1495,9 @@ renderRepairs();
 updRepairTbl();
 renderDocPriors();
 renderDocAfters();
+document.getElementById('dcon').addEventListener('input', checkOverflow);
+wrapTaqabulSection();
+checkOverflow();
 
 (function(){
   const today=new Date().toISOString().split('T')[0];
