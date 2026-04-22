@@ -1243,15 +1243,18 @@ function getAreas(s){
 function chkConf(){
   const cur=getAreas(document.getElementById('f-darea').value||document.getElementById('d-darea').textContent);
   const prev=priors.flatMap(p=>getAreas(p.damage));
-  const hits=cur.filter(a=>prev.some(b=>b.includes(a)||a.includes(b)));
+  const hits=cur.filter(a=>prev.some(b=>b.trim()===a.trim()));
   const ca=document.getElementById('conflict-alert');
   document.getElementById('d-darea').classList.toggle('conflict',hits.length>0);
   ca.style.display=hits.length?'block':'none';
   if(hits.length)document.getElementById('conf-list').textContent=hits.join(' ، ');
   document.querySelectorAll('.pdmg').forEach(el=>{
-    const a=getAreas(el.textContent);
-    const h=a.some(x=>cur.some(c=>c.includes(x)||x.includes(c)));
-    el.style.color=h?'red':'';el.style.fontWeight=h?'900':'';
+    const areas=getAreas(el.textContent);
+    // Rebuild innerHTML so only the exact overlapping numbers turn red
+    el.innerHTML=areas.map(a=>{
+      const hit=cur.some(c=>c.trim()===a.trim());
+      return hit?`<span style="color:red;font-weight:900">${a}</span>`:a;
+    }).join('+');
   });
 }
 
