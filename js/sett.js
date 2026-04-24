@@ -418,9 +418,10 @@ function _doCheckOverflow() {
 }
 
 function createNewPage() {
-  const hSrc = document.getElementById('himg')?.src || '';
-  const fSrc = document.getElementById('fimg')?.src || '';
-  const wmSrc = document.getElementById('wm')?.src  || '';
+  const hSrc    = document.getElementById('himg')?.src  || '';
+  const fSrc    = document.getElementById('fimg')?.src  || '';
+  const wmSrc   = document.getElementById('wm')?.src    || '';
+  const khtmSrc = document.querySelector('.khtm')?.src  || 'img/khtm.png';
 
   const wrap = document.createElement('div');
   wrap.className = 'page-wrap';
@@ -428,13 +429,19 @@ function createNewPage() {
   const pg = document.createElement('div');
   pg.className = 'p-page';
 
-  // Watermark — same position/style as #wm on page 1
+  // Background watermark (low opacity, centred)
   if (wmSrc) {
     const wm = document.createElement('img');
     wm.src = wmSrc;
-    wm.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-25deg);pointer-events:none;opacity:.07;z-index:0;width:400px;height:400px;object-fit:contain';
+    wm.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;opacity:.22;z-index:0;width:650px;height:650px;object-fit:contain';
     pg.appendChild(wm);
   }
+
+  // Stamp seal (full opacity, bottom-left above footer)
+  const khtm = document.createElement('img');
+  khtm.className = 'khtm';
+  khtm.src = khtmSrc;
+  pg.appendChild(khtm);
 
   const hi = document.createElement('img');
   hi.className = 'p-himg';
