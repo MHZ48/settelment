@@ -650,10 +650,11 @@ function clearDmgSelect(){
 function updateRespDisplay(val){
   const n=parseInt(val)||100;
   const line=document.getElementById('d-resp-line');
+  const pctSpan=`<span style="color:red;font-weight:700">${n}%</span>`;
   if(n>=100){
-    line.textContent='حدود المسؤولية : 100% من مسؤولية على المركبة المؤمنة لدينا .';
+    line.innerHTML=`حدود المسؤولية : ${pctSpan} من مسؤولية على المركبة المؤمنة لدينا .`;
   } else {
-    line.textContent=' حدود المسؤولية : حادث مشترك/ '+n+'% من مسؤولية على المركبة المؤمنة لدينا .';
+    line.innerHTML=`حدود المسؤولية : حادث مشترك/ ${pctSpan} من مسؤولية على المركبة المؤمنة لدينا .`;
   }
 }
 // set default
@@ -960,6 +961,17 @@ function getFullName(p){
     return acc+' + '+label;
   }, baseName);
 }
+function getFullNameHTML(p){
+  const arr=p.subs&&p.subs.length?p.subs:(p.sub?[{name:p.sub,price:''}]:[]);
+  const half50='<span style="color:#cc0000;font-weight:700"> (50%)</span>';
+  const baseName=escH(p.name)+(p.half?half50:'');
+  return arr.reduce((acc,s)=>{
+    const n=typeof s==='object'?s.name:s;
+    if(!n||!n.trim()) return acc;
+    const label=escH(n.trim())+(s.half?half50:'');
+    return acc+' + '+label;
+  }, baseName);
+}
 function toggleHalf(i){
   parts[i].half=!parts[i].half;
   claimPrices[i]=null;
@@ -983,9 +995,9 @@ function getTotalPrice(p){
 function updPTbl(){
   document.getElementById('parts-tbody').innerHTML=parts.map((p,i)=>{
     const eff=getTotalPrice(p);
-    return `<tr${p.half?' style="color:#cc0000"':''}>
-      <td>${escH(getFullName(p))}</td>
-      <td>${eff%1===0?eff.toFixed(0):eff.toFixed(1)}</td>
+    return `<tr>
+      <td>${getFullNameHTML(p)}</td>
+      <td style="color:#000">${eff%1===0?eff.toFixed(0):eff.toFixed(1)}</td>
     </tr>`;
   }).join('');
   updCTbl();
@@ -1025,13 +1037,15 @@ function updCTbl(){
   document.getElementById('ctr-tbody').innerHTML=parts.map((p,i)=>{
     const auto=calcClaimPrice(claimBase(p));
     const val=claimPrices[i]!==null?claimPrices[i]:auto;
-    return `<tr><td>${i+1}</td><td>${escH(getFullName(p))}</td><td>${parseFloat(val)%1===0?parseFloat(val).toFixed(0):parseFloat(val).toFixed(1)}</td></tr>`;
+    return `<tr><td>${i+1}</td><td>${getFullNameHTML(p)}</td><td>${parseFloat(val)%1===0?parseFloat(val).toFixed(0):parseFloat(val).toFixed(1)}</td></tr>`;
   }).join('');
   const s=parts.reduce((a,p,i)=>{
     const auto=calcClaimPrice(claimBase(p));
     return a+(claimPrices[i]!==null?parseFloat(claimPrices[i])||0:auto);
   },0);
   document.getElementById('d-ct').textContent=s%1===0?s.toFixed(0):s.toFixed(1);
+  const _taq=document.getElementById('taqabul-wrap');
+  if(_taq) _taq.style.display=s===0?'none':'';
 
   // update form panel list
   renderClaimPriceList();
@@ -1083,7 +1097,7 @@ function updCTblFromInput(){
   document.getElementById('ctr-tbody').innerHTML=parts.map((p,i)=>{
     const auto=calcClaimPrice(claimBase3(p));
     const val=claimPrices[i]!==null?claimPrices[i]:auto;
-    return `<tr><td>${i+1}</td><td>${escH(getFullName(p))}</td><td>${parseFloat(val)%1===0?parseFloat(val).toFixed(0):parseFloat(val).toFixed(1)}</td></tr>`;
+    return `<tr><td>${i+1}</td><td>${getFullNameHTML(p)}</td><td>${parseFloat(val)%1===0?parseFloat(val).toFixed(0):parseFloat(val).toFixed(1)}</td></tr>`;
   }).join('');
   const s=parts.reduce((a,p,i)=>{
     const auto=calcClaimPrice(claimBase3(p));
@@ -1091,6 +1105,8 @@ function updCTblFromInput(){
   },0);
   document.getElementById('d-ct').textContent=s%1===0?s.toFixed(0):s.toFixed(1);
   document.getElementById('fp-ct').textContent=s%1===0?s.toFixed(0):s.toFixed(1);
+  const _taq2=document.getElementById('taqabul-wrap');
+  if(_taq2) _taq2.style.display=s===0?'none':'';
 }
 
 // ═══════════════════════════════════════════
@@ -1632,6 +1648,7 @@ renderDocPriors();
 renderDocAfters();
 document.getElementById('dcon').addEventListener('input', checkOverflow);
 wrapTaqabulSection();
+(function(){const t=document.getElementById('taqabul-wrap');if(t&&parts.length===0)t.style.display='none';})();
 checkOverflow();
 
 (function(){
