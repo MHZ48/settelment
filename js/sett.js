@@ -1483,6 +1483,107 @@ img.full{width:100%;display:block}
 }
 
 // ═══════════════════════════════════════════
+// EXPORT HELPERS
+// ═══════════════════════════════════════════
+function _exportFileName(numId, yrId, fallback) {
+  const num = (document.getElementById(numId)?.value || '').trim();
+  const yr  = (document.getElementById(yrId)?.value  || '').trim();
+  const raw = [yr, num].filter(Boolean).join('_') || fallback;
+  // strip characters that are invalid in filenames
+  return raw.replace(/[\\/:*?"<>|]/g, '_');
+}
+
+function saveAsWord() {
+  const def   = _exportFileName('f-anum-num', 'f-anum-yr', 'تقرير-التسوية');
+  const input = prompt('اسم ملف Word', def);
+  if (input === null) return;
+  const fname = (input.trim() || def).replace(/[\\/:*?"<>|]/g, '_');
+
+  // Grab header / footer image src (already base64 in the DOM)
+  const hSrc = document.getElementById('himg')?.src || '';
+  const fSrc = document.getElementById('fimg')?.src || '';
+
+  // Collect the actual text content from every page's content area
+  const dcons = [
+    document.getElementById('dcon'),
+    ...document.querySelectorAll('.p-dcon')
+  ].filter(Boolean);
+
+  const pagesHTML = dcons.map((dc, idx) => {
+    const clone = dc.cloneNode(true);
+    clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
+    // Remove inline conflict colours so Word shows clean text
+    clone.querySelectorAll('[style]').forEach(el => el.removeAttribute('style'));
+    const pageBreak = idx < dcons.length - 1 ? 'page-break-after:always' : '';
+    return `
+<table width="100%" style="${pageBreak};border-collapse:collapse;width:100%">
+  <tr><td style="padding:0">${hSrc ? `<img src="${hSrc}" width="100%" style="display:block">` : ''}</td></tr>
+  <tr><td style="padding:4px 36px 12px;direction:rtl;font-size:13px;line-height:1.7;color:#111;vertical-align:top">
+    ${clone.innerHTML}
+  </td></tr>
+  <tr><td style="padding:0">${fSrc ? `<img src="${fSrc}" width="100%" style="display:block">` : ''}</td></tr>
+</table>`;
+  }).join('');
+
+  const wordDoc = `<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:w="urn:schemas-microsoft-com:office:word"
+      xmlns="http://www.w3.org/TR/REC-html40" lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name=ProgId content=Word.Document>
+<title>${fname}</title>
+<!--[if gte mso 9]><xml>
+<w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom>
+<w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->
+<style>
+  @page WordSection1{size:210mm 297mm;margin:0}
+  div.WordSection1{page:WordSection1}
+  body{font-family:Arial,sans-serif;direction:rtl;margin:0;padding:0}
+  img{max-width:100%;display:block}
+  .dtit{text-align:center;font-size:18px;font-weight:900;text-decoration:underline;margin:2px 0 8px;color:#000}
+  .ds{font-weight:700;font-size:13px;margin:8px 0 3px;color:#111}
+  .ef{border-bottom:1px solid #555;color:#00008b}
+  .rl{color:#cc0000;font-weight:700;text-decoration:underline}
+  .bl{color:#000;font-weight:700}
+  .il{margin:3px 0;font-weight:700}
+  .yb{border:2px solid #8B6010;background:#fffce6;padding:7px 12px;margin:7px 0;text-align:center;font-weight:700;font-size:14px;color:#5a0000}
+  .brb{border:2px solid #7a5c2a;padding:7px 11px;margin:4px 0}
+  .dt{width:100%;border-collapse:collapse;margin:4px 0;font-size:12px}
+  .dt th{background:#e6f2ee;border:1px solid #777;padding:4px 7px;text-align:center;font-weight:700;color:#8B0000;text-decoration:underline}
+  .dt td{border:1px solid #777;padding:4px 7px;text-align:center;vertical-align:middle}
+  .dt td.lh{background:#e6f2ee;font-weight:700;color:#8B0000;text-decoration:underline;text-align:right}
+  .dt .tot td{border-top:2px solid #555;font-weight:700;background:#f9f5ec}
+  hr.sd{border:none;border-top:1.5px solid #888;margin:8px 0}
+</style>
+</head>
+<body><div class="WordSection1">${pagesHTML}</div></body>
+</html>`;
+
+  const blob = new Blob(['﻿', wordDoc], { type: 'application/msword' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = fname + '.doc';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 500);
+}
+
+function saveAsPDF() {
+  const def   = _exportFileName('f-cnum-num', 'f-cnum-yr', 'تقرير-التسوية');
+  const input = prompt('اسم ملف PDF', def);
+  if (input === null) return;
+  const fname = (input.trim() || def).replace(/[\\/:*?"<>|]/g, '_');
+
+  // Set document title — browsers use this as the suggested PDF filename
+  // in the print-to-PDF dialog (Chrome / Edge / Firefox all honour it)
+  const prev = document.title;
+  document.title = fname;
+  window.print();
+  setTimeout(() => { document.title = prev; }, 1500);
+}
+
+// ═══════════════════════════════════════════
 // CLOSE DROPDOWNS ON OUTSIDE CLICK
 // ═══════════════════════════════════════════
 document.addEventListener('click',e=>{

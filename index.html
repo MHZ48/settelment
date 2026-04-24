@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>محرر تقرير التسوية</title>
 <link rel="stylesheet" href="css/sett.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 <div id="app">
@@ -16,7 +17,8 @@
   </div>
   <div style="display:flex;gap:5px">
     <button class="hb hb-o" onclick="window.print()">🖨 طباعة</button>
-    <button class="hb hb-g" onclick="document.getElementById('modal').classList.add('open')">💾 حفظ</button>
+    <button class="hb hb-w" onclick="saveAsWord()">📄 Word</button>
+    <button class="hb hb-p" onclick="saveAsPDF()">📕 PDF</button>
   </div>
 </div>
 
