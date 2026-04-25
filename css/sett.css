@@ -114,7 +114,7 @@ html,body{height:100%;font-family:'Tajawal',sans-serif;direction:rtl;background:
 /* editable inline field */
 .ef{display:inline;border-bottom:1px solid #555;min-width:55px;padding:0 3px;color:#00008b;outline:none;cursor:text}
 .ef:empty:before{content:attr(data-p);color:#bbb;font-style:italic;font-size:.85em;pointer-events:none}
-.ef.conflict{color:red!important;border-bottom-color:red!important;font-weight:700}
+.ef.conflict{color:rgb(0, 0, 0)!important;border-bottom-color:rgb(0, 0, 0)!important;font-weight:700}
 /* tables */
 .dt{width:100%;border-collapse:collapse;margin:4px 0;font-size:12px}
 .dt th{background:#fff;border:1px solid #777;padding:4px 7px;text-align:center;font-weight:700;color:#8B0000;text-decoration:underline}
