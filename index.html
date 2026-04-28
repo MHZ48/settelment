@@ -64,19 +64,21 @@
       <div class="r2">
 <div class="fg">
   <label>نوع المركبة</label>
-  <input type="text" id="f-vtype" list="list-makes" 
-         oninput="onMakeInput(this.value)" 
+  <input type="text" id="f-vtype" 
+         oninput="filterMake(this.value)" 
          onblur="checkNewMake(this.value)" 
          placeholder="ابحث أو أدخل النوع...">
+  <div id="make-list" class="plist"></div>
   <datalist id="list-makes"></datalist>
 </div>
 
 <div class="fg">
   <label>صنف المركبة</label>
-  <input type="text" id="f-vcls" list="list-models" 
-         oninput="S('vcls', this.value)" 
+  <input type="text" id="f-vcls" 
+         oninput="filterModel(this.value)" 
          onblur="checkNewModel(this.value)" 
          placeholder="ابحث أو أدخل الصنف...">
+  <div id="model-list" class="plist"></div>
   <datalist id="list-models"></datalist>
 </div>
       </div>

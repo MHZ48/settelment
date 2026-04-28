@@ -63,6 +63,7 @@ Promise.all([
   // 2. معالجة وتعبئة الألوان
   if (colorsData && typeof fillColorsDatalist === 'function') {
     const allColors = colorsData.map(row => row.color_name);
+    loadedColors = allColors.slice(); // keep in sync so checkNewColor can use it
     fillColorsDatalist(allColors);
   }
 
@@ -132,11 +133,8 @@ async function checkNewColor(colorName) {
       // إرسال اللون إلى Supabase
       const success = await insertToDB('colors', { color_name: colorName });
       if (success) {
-        loadedColors.push(colorName); // إضافته للمصفوفة المحلية حتى لا يسأل عنه مجدداً
-        // تحديث الـ datalist فوراً
-        const opt = document.createElement('option');
-        opt.value = colorName;
-        document.getElementById('list-colors').appendChild(opt);
+        loadedColors.push(colorName);
+        fillColorsDatalist(loadedColors); // re-render sorted
       }
     }
   }
@@ -177,13 +175,7 @@ async function checkNewMake(makeName) {
     if (inserted) {
       CAR_DATA[makeName] = [];
       MAKE_NAME_TO_ID[makeName] = inserted.id;
-      // تحديث القائمة المنسدلة فوراً
-      const dl = document.getElementById('list-makes');
-      if(dl){
-        const opt = document.createElement('option');
-        opt.value = makeName;
-        dl.appendChild(opt);
-      }
+      fillMakesDatalist(); // re-render sorted
       alert("✅ تم إضافة النوع بنجاح");
     }
   }
@@ -220,14 +212,7 @@ async function checkNewModel(modelName) {
 
       if (inserted) {
         CAR_DATA[currentMake].push(modelName);
-        
-        // تحديث الـ datalist الخاص بالموديلات فوراً
-        const dl = document.getElementById('list-models');
-        if (dl) {
-          const opt = document.createElement('option');
-          opt.value = modelName;
-          dl.appendChild(opt);
-        }
+        onMakeInput(currentMake); // re-render models sorted
         alert("✅ تم إضافة الموديل الجديد بنجاح");
       }
     }
@@ -256,7 +241,7 @@ function fillMakesDatalist() {
   if (!dl) return; // للتأكد من وجود العنصر
   
   dl.innerHTML = '';
-  Object.keys(CAR_DATA).sort((a, b) => a.localeCompare(b, 'ar')).forEach(make => {
+  Object.keys(CAR_DATA).sort((a, b) => arSort(a, b)).forEach(make => {
     const opt = document.createElement('option');
     opt.value = make;
     dl.appendChild(opt);
@@ -274,7 +259,7 @@ function onMakeInput(val) {
   
   // إذا كان النوع الذي كتبه المستخدم موجوداً في data.json
   if (CAR_DATA[val]) {
-    [...CAR_DATA[val]].sort((a, b) => a.localeCompare(b, 'ar')).forEach(model => {
+    [...CAR_DATA[val]].sort((a, b) => arSort(a, b)).forEach(model => {
       const opt = document.createElement('option');
       opt.value = model;
       modelDl.appendChild(opt);
@@ -288,7 +273,7 @@ function fillColorsDatalist(colorsArray) {
   if (!dl || !colorsArray) return;
   
   dl.innerHTML = '';
-  [...colorsArray].sort((a, b) => a.localeCompare(b, 'ar')).forEach(color => {
+  [...colorsArray].sort((a, b) => arSort(a, b)).forEach(color => {
     const opt = document.createElement('option');
     opt.value = color;
     dl.appendChild(opt);
@@ -302,7 +287,7 @@ function fillRegSelect(regArray) {
   // تفريغ القائمة مع الإبقاء على الخيار الافتراضي
   sel.innerHTML = '<option value="">اختر صفة التسجيل...</option>';
   
-  [...regArray].sort((a, b) => a.localeCompare(b, 'ar')).forEach(reg => {
+  [...regArray].sort((a, b) => arSort(a, b)).forEach(reg => {
     const opt = document.createElement('option');
     opt.value = reg;
     opt.textContent = reg;
@@ -317,7 +302,7 @@ function initCarSelects(){
   // Clear any existing options first
   makeSelect.innerHTML = '<option value="">اختر الصنف...</option>'; 
   
-  Object.keys(CAR_DATA).sort((a, b) => a.localeCompare(b, 'ar')).forEach(make => {
+  Object.keys(CAR_DATA).sort((a, b) => arSort(a, b)).forEach(make => {
     const opt = document.createElement('option');
     opt.value = make; 
     opt.textContent = make;
@@ -841,16 +826,52 @@ function fl(el){el.classList.remove('sf');void el.offsetWidth;el.classList.add('
 // ═══════════════════════════════════════════
 // PARTS
 // ═══════════════════════════════════════════
+// Normalize Arabic text for search: strip diacritics + unify alef/ya/ta-marbuta variants
+function normalizeAr(s){
+  return (s||'')
+    .replace(/[ً-ٰٟ]/g,'') // diacritics / shadda / superscript alef
+    .replace(/[أإآٱ]/g,'ا')               // alef variants → bare alef
+    .replace(/ة/g,'ه')                    // ta marbuta → ha
+    .replace(/ى/g,'ي');                   // alef maqsura → ya
+}
+function arSort(a,b){return a.localeCompare(b,'ar',{sensitivity:'base'});}
+function arMatch(item,q){return normalizeAr(item).startsWith(normalizeAr(q));}
+
 function filterP(q){
-    if (!PDB || PDB.length === 0) return;
-  fp=(q.trim()?PDB.filter(p=>p.includes(q.trim())):PDB.slice()).sort((a,b)=>a.localeCompare(b,'ar'));
+  if (!PDB || PDB.length === 0) return;
+  const qt=q.trim();
+  fp=(qt?PDB.filter(p=>arMatch(p,qt)):PDB.slice()).sort(arSort);
   renderPL();
-  document.getElementById('plist').classList.toggle('vis',q.trim().length>0);
+  document.getElementById('plist').classList.toggle('vis',qt.length>0);
 }
 function renderPL(){
   document.getElementById('plist').innerHTML=fp.slice(0,14).map((p,idx)=>`<div class="popt" onmousedown="event.preventDefault()" onclick="selP(fp[${idx}])">${p}</div>`).join('');
 }
 function selP(n){addP(n,'');document.getElementById('psearch').value='';document.getElementById('plist').classList.remove('vis');}
+
+let fm=[];
+function filterMake(q){
+  onMakeInput(q);
+  const qt=q.trim();
+  const makes=Object.keys(CAR_DATA).sort(arSort);
+  fm=qt?makes.filter(m=>arMatch(m,qt)):makes;
+  document.getElementById('make-list').innerHTML=fm.slice(0,14).map((m,idx)=>`<div class="popt" onmousedown="event.preventDefault()" onclick="selMake(fm[${idx}])">${m}</div>`).join('');
+  document.getElementById('make-list').classList.toggle('vis',qt.length>0&&fm.length>0);
+}
+function selMake(n){document.getElementById('f-vtype').value=n;onMakeInput(n);document.getElementById('make-list').classList.remove('vis');}
+
+let fml=[];
+function filterModel(q){
+  S('vcls',q);
+  const qt=q.trim();
+  const currentMake=document.getElementById('f-vtype').value;
+  const models=(CAR_DATA[currentMake]||[]).slice().sort(arSort);
+  fml=qt?models.filter(m=>arMatch(m,qt)):models;
+  document.getElementById('model-list').innerHTML=fml.slice(0,14).map((m,idx)=>`<div class="popt" onmousedown="event.preventDefault()" onclick="selModel(fml[${idx}])">${m}</div>`).join('');
+  document.getElementById('model-list').classList.toggle('vis',qt.length>0&&fml.length>0);
+}
+function selModel(n){document.getElementById('f-vcls').value=n;S('vcls',n);document.getElementById('model-list').classList.remove('vis');}
+
 function addCustomP(){
   const inp=document.getElementById('psearch');
   const n=inp.value.trim();if(!n)return;
@@ -863,7 +884,7 @@ function filterSub(q,i,j){
   const list=document.getElementById(listId);
   if(!list) return;
   if(!q.trim()){list.style.display='none';return;}
-  const res=PDB.filter(p=>p.includes(q.trim())).sort((a,b)=>a.localeCompare(b,'ar')).slice(0,10);
+  const res=PDB.filter(p=>arMatch(p,q.trim())).sort(arSort).slice(0,10);
   list.innerHTML=res.map(p=>`<div class="popt" onmousedown="event.preventDefault()" onclick="selSub('${escH(p)}',${i},${j})">${escH(p)}</div>`).join('');
   list.style.display=res.length?'block':'none';
 }
@@ -1833,6 +1854,10 @@ function saveAsPDF() {
 document.addEventListener('click',e=>{
   if(!e.target.closest('#psearch')&&!e.target.closest('#plist'))
     document.getElementById('plist').classList.remove('vis');
+  if(!e.target.closest('#f-vtype')&&!e.target.closest('#make-list'))
+    document.getElementById('make-list').classList.remove('vis');
+  if(!e.target.closest('#f-vcls')&&!e.target.closest('#model-list'))
+    document.getElementById('model-list').classList.remove('vis');
   if(!e.target.closest('#dmg-dropdown')&&!e.target.closest('#f-darea-display'))
     { const dd=document.getElementById('dmg-dropdown'); if(dd) dd.style.display='none'; }
   if(!e.target.closest('[id^="sub-inp-"]')&&!e.target.closest('[id^="spl-"]'))
