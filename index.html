@@ -99,7 +99,7 @@
     <div class="fg">
   <label>لون المركبة</label>
 <input type="text" id="f-vcolor" list="list-colors" 
-       oninput="S('vcolor', this.value)" 
+       oninput="S('vcol', this.value)"
        onblur="checkNewColor(this.value)" 
        placeholder="ابحث أو أدخل اللون...">
          <datalist id="list-colors"></datalist>
@@ -352,13 +352,14 @@
       <div class="dtit">تقرير تسوية</div>
 
       <!-- Section 1 line — gap between "معلومات الحادث" and "التاريخ" via spaces like original -->
-      <div class="ds">
+      <div class="ds" style="display:flex;justify-content:space-between;align-items:center">
         <span class="rl">معلومات الحادث&nbsp;:</span>
-        <span style="display:inline-block;width:350px"></span>
-        <span class="rl">التاريخ&nbsp;:</span>
-        <span id="d-today-wrap" style="margin-right:6px">
-          <span id="d-today" style="font-weight:700;color:#333;cursor:pointer;border-bottom:1px dashed #aaa;padding-bottom:1px" title="انقر للتعديل"></span>
-          <input type="date" id="d-today-input" style="display:none;font-family:'Tajawal',sans-serif;font-size:12px;border:1px solid #999;border-radius:3px;padding:1px 4px" onchange="applyTodayEdit(this.value)" onblur="hideTodayInput()">
+        <span style="display:inline-flex;align-items:center;gap:4px">
+          <span class="rl">التاريخ&nbsp;:</span>
+          <span id="d-today-wrap">
+            <span id="d-today" style="font-weight:700;color:#333;cursor:pointer;border-bottom:1px dashed #aaa;padding-bottom:1px" title="انقر للتعديل"></span>
+            <input type="date" id="d-today-input" style="display:none;font-family:'Tajawal',sans-serif;font-size:12px;border:1px solid #999;border-radius:3px;padding:1px 4px" onchange="applyTodayEdit(this.value)" onblur="hideTodayInput()">
+          </span>
         </span>
       </div>
 
@@ -414,7 +415,7 @@
       <div class="il"><span class="bl">1) </span><span class="rl">الاصلاحات</span><span style="display:inline-block;width:240px"></span><span class="bl">2) </span><span class="rl">القطع :</span></div>
 
       <!-- Parts + Repairs side by side -->
-      <div class="sbs" style="margin-top:5px">
+      <div class="sbs" style="margin-top:5px;gap:30px">
         <div style="flex:1;min-width:0">
           <table class="dt" id="repairs-tbl">
             <tbody id="repairs-tbody"></tbody>
