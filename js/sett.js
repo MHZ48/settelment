@@ -453,9 +453,10 @@ let parts=[], repairs=[{name:'تركيب القطع'},{name:'دهان مكان �
 (function(){
   const n=new Date();
   const iso=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0');
-  const display=n.getFullYear()+'/'+String(n.getMonth()+1).padStart(2,'0')+'/'+String(n.getDate()).padStart(2,'0');
+  const display=String(n.getDate()).padStart(2,'0')+'/'+String(n.getMonth()+1).padStart(2,'0')+'/'+n.getFullYear();
   document.getElementById('d-today').textContent=display;
   document.getElementById('d-today-input').value=iso;
+  document.getElementById('f-rdate').value=display;
   // incident date cell: empty until user picks
   document.getElementById('d-date-cell').textContent='';
 })();
@@ -471,7 +472,7 @@ document.getElementById('d-today').addEventListener('click', function(){
 function applyTodayEdit(val){
   if(!val) return;
   const [y,m,d]=val.split('-');
-  const display=y+'/'+m+'/'+d;
+  const display=d+'/'+m+'/'+y;
   const span=document.getElementById('d-today');
   span.textContent=display;
   span.style.display='inline';
@@ -482,13 +483,22 @@ function hideTodayInput(){
   const span=document.getElementById('d-today');
   if(span.textContent) { inp.style.display='none'; span.style.display='inline'; }
 }
+function applyRdate(val){
+  const p=val.split('/');
+  if(p.length===3&&p[2].length===4){
+    const iso=p[2]+'-'+p[1]+'-'+p[0];
+    applyTodayEdit(iso);
+  }
+}
 
 // Incident date → update d-date-cell
-function updateIdateDisplay(){
-  const val=document.getElementById('f-idate').value;
-  if(!val){ document.getElementById('d-date-cell').textContent=''; return; }
-  const [y,m,d]=val.split('-');
-  document.getElementById('d-date-cell').textContent=y+'/'+m+'/'+d;
+function applyIdate(val){
+  const p=val.split('/');
+  if(p.length===3&&p[2].length===4){
+    document.getElementById('d-date-cell').textContent=val;
+  } else if(!val.trim()){
+    document.getElementById('d-date-cell').textContent='';
+  }
 }
 
 // Two-part incident number — format: رقم/سنة
@@ -1481,15 +1491,15 @@ function saveDoc(){
 @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Tajawal',sans-serif;direction:rtl;background:#fff;color:#111;max-width:860px;margin:0 auto}
-.dtit{text-align:center;font-size:18px;font-weight:900;text-decoration:underline;margin:2px 0 8px}
+.dtit{text-align:center;font-size:18px;font-weight:900;text-decoration:none;margin:2px 0 8px}
 .ds{font-weight:700;font-size:13px;margin:8px 0 3px}
 .ef{display:inline;border-bottom:1px solid #555;min-width:55px;padding:0 3px;color:#000000}
 .dt{width:100%;border-collapse:collapse;margin:4px 0;font-size:12px}
-.dt th{background:#e6f2ee;border:1px solid #777;padding:4px 7px;text-align:center;font-weight:700;color:#cc0000;text-decoration:underline}
+.dt th{background:#e6f2ee;border:1px solid #777;padding:4px 7px;text-align:center;font-weight:700;color:#cc0000;text-decoration:none}
 .dt td{border:1px solid #777;padding:4px 7px;text-align:center;vertical-align:middle}
-.dt td.lh{background:#e6f2ee;font-weight:700;color:#cc0000;text-decoration:underline;text-align:right}
+.dt td.lh{background:#e6f2ee;font-weight:700;color:#cc0000;text-decoration:none;text-align:right}
 .dt .tot td{border-top:2px solid #555;font-weight:700;background:#f9f5ec}
-.rl{color:#cc0000;font-weight:700;text-decoration:underline}
+.rl{color:#cc0000;font-weight:700;text-decoration:none}
 .bl{color:#000000;font-weight:700}
 .brb{border:2px solid #7a5c2a;padding:7px 11px;margin:4px 0}
 .yb{border:2px solid #8B6010;background:#fffce6;padding:7px 12px;margin:7px 0;text-align:center;font-weight:700;font-size:14px;color:#5a0000}
@@ -1609,11 +1619,11 @@ function saveAsWord() {
 
   // Map CSS classes → fully inlined Word-safe styles
   const CMAP = {
-    'dtit':     'display:block;text-align:center;font-size:18px;font-weight:900;text-decoration:underline;margin:2px 0 8px;color:#000000',
+    'dtit':     'display:block;text-align:center;font-size:18px;font-weight:900;text-decoration:none;margin:2px 0 8px;color:#000000',
     'ds':       'display:block;font-weight:700;font-size:13px;margin:8px 0 3px;color:#111111',
     'ef':       'display:inline;border-bottom:1px solid #555555;padding:0 3px;color:#000000',
     'conflict': 'color:#cc0000;border-bottom:1px solid #cc0000;font-weight:700',
-    'rl':       'color:#cc0000;font-weight:700;text-decoration:underline',
+    'rl':       'color:#cc0000;font-weight:700;text-decoration:none',
     'bl':       'color:#000000;font-weight:700',
     'il':       'display:block;margin:3px 0;font-weight:700',
     'yb':       'display:block;border:2px solid #8b6010;background:#fffce6;padding:7px 12px;margin:7px 0;text-align:center;font-weight:700;font-size:14px;color:#5a0000',
@@ -1623,11 +1633,11 @@ function saveAsWord() {
 
   // Table cell base styles (fully inlined hex, no shorthand that Word misreads)
   const CELL = {
-    th:    'background:#ffffff;border:1px solid #777777;padding:4px 7px;text-align:center;font-weight:700;color:#cc0000;text-decoration:underline',
+    th:    'background:#ffffff;border:1px solid #777777;padding:4px 7px;text-align:center;font-weight:700;color:#cc0000;text-decoration:none',
     td:    'border:1px solid #777777;padding:4px 7px;text-align:center;vertical-align:middle',
-    lh:    'background:#ffffff;border:1px solid #777777;padding:4px 7px;font-weight:700;color:#cc0000;text-decoration:underline;text-align:right',
+    lh:    'background:#ffffff;border:1px solid #777777;padding:4px 7px;font-weight:700;color:#cc0000;text-decoration:none;text-align:right',
     totTd: 'border:1px solid #777777;border-top:2px solid #555555;padding:4px 7px;font-weight:700;background:#f9f5ec;text-align:center;vertical-align:middle',
-    totLh: 'border:1px solid #777777;border-top:2px solid #555555;padding:4px 7px;font-weight:700;background:#f9f5ec;color:#cc0000;text-decoration:underline;text-align:right',
+    totLh: 'border:1px solid #777777;border-top:2px solid #555555;padding:4px 7px;font-weight:700;background:#f9f5ec;color:#cc0000;text-decoration:none;text-align:right',
   };
 
   function wordify(root) {

@@ -109,19 +109,19 @@ html,body{height:100%;font-family:'Tajawal',sans-serif;direction:rtl;background:
 #dcon:focus{outline:none}
 
 /* DOC ELEMENTS */
-.dtit{text-align:center;font-size:18px;font-weight:900;text-decoration:underline;margin:2px 0 8px;color:#000}
+.dtit{text-align:center;font-size:18px;font-weight:900;text-decoration:none;margin:2px 0 8px;color:#000}
 .ds{font-weight:700;font-size:13px;margin:8px 0 3px;color:#111}
 /* editable inline field */
-.ef{display:inline;border-bottom:1px solid #555;min-width:55px;padding:0 3px;color:#000000;outline:none;cursor:text}
+.ef{display:inline;min-width:55px;padding:0 3px;color:#000000;outline:none;cursor:text}
 .ef:empty:before{content:attr(data-p);color:#bbb;font-style:italic;font-size:.85em;pointer-events:none}
 .ef.conflict{color:rgb(0, 0, 0)!important;border-bottom-color:rgb(0, 0, 0)!important;font-weight:700}
 /* tables */
 .dt{width:100%;border-collapse:collapse;margin:4px 0;font-size:12px}
-.dt th{background:#fff;border:1px solid #777;padding:4px 7px;text-align:center;font-weight:700;color:#cc0000;text-decoration:underline}
+.dt th{background:#fff;border:1px solid #777;padding:4px 7px;text-align:center;font-weight:700;color:#cc0000;text-decoration:none}
 .dt td{border:1px solid #777;padding:4px 7px;text-align:center;vertical-align:middle}
-.dt td.lh{background:#fff;font-weight:700;color:#cc0000;text-decoration:underline;text-align:right}
+.dt td.lh{background:#fff;font-weight:700;color:#cc0000;text-decoration:none;text-align:right}
 .dt .tot td{border-top:2px solid #555;font-weight:700;background:#f9f5ec}
-.rl{color:#cc0000;font-weight:700;text-decoration:underline}
+.rl{color:#cc0000;font-weight:700;text-decoration:none}
 .bl{color:#000;font-weight:700}
 .brb{border:2px solid #7a5c2a;padding:7px 11px;margin:4px 0}
 .yb{border:2px solid #8B6010;background:#fffce6;padding:7px 12px;margin:7px 0;text-align:center;font-weight:700;font-size:14px;color:#5a0000}

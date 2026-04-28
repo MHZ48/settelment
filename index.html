@@ -32,10 +32,18 @@
   <div class="st" onclick="tog(this)"><span>١. معلومات الحادث</span><span class="arr">▼</span></div>
   <div class="sb">
     <div class="fg"><label>تاريخ التقرير</label>
-      <input type="date" id="f-rdate" onchange="S('rdate',this.value)">
+      <div style="display:flex;gap:4px;align-items:center">
+        <input type="text" id="f-rdate" placeholder="dd/mm/yyyy" maxlength="10" oninput="applyRdate(this.value)" style="flex:1">
+        <input type="date" id="f-rdate-picker" style="position:absolute;opacity:0;width:0;height:0;pointer-events:none" onchange="document.getElementById('f-rdate').value=this.value.split('-').reverse().join('/');applyRdate(document.getElementById('f-rdate').value)">
+        <button type="button" onclick="document.getElementById('f-rdate-picker').showPicker()" style="padding:4px 7px;border-radius:4px;border:1px solid var(--brd);background:var(--inp);color:var(--dim);cursor:pointer;font-size:12px;flex-shrink:0">📅</button>
+      </div>
     </div>
     <div class="fg"><label>تاريخ الحادث</label>
-      <input type="date" id="f-idate" onchange="S('idate',this.value);updateIdateDisplay()">
+      <div style="display:flex;gap:4px;align-items:center">
+        <input type="text" id="f-idate" placeholder="dd/mm/yyyy" maxlength="10" oninput="applyIdate(this.value)" style="flex:1">
+        <input type="date" id="f-idate-picker" style="position:absolute;opacity:0;width:0;height:0;pointer-events:none" onchange="document.getElementById('f-idate').value=this.value.split('-').reverse().join('/');applyIdate(document.getElementById('f-idate').value)">
+        <button type="button" onclick="document.getElementById('f-idate-picker').showPicker()" style="padding:4px 7px;border-radius:4px;border:1px solid var(--brd);background:var(--inp);color:var(--dim);cursor:pointer;font-size:12px;flex-shrink:0">📅</button>
+      </div>
     </div>
     <div class="fg"><label>رقم الحادث</label>
       <div style="display:grid;grid-template-columns:1fr 80px;gap:4px">
@@ -361,7 +369,7 @@
           <th>اسم المدعي</th><th>رقم السيارة المتسببة</th><th>رقم البوليصة</th>
         </tr></thead>
         <tbody><tr>
-          <td id="d-date-cell" style="color:#000000;font-weight:700;text-decoration:underline"></td>
+          <td id="d-date-cell" style="color:#000000;font-weight:700;text-decoration:none"></td>
           <td><span class="ef" contenteditable="true" id="d-anum" data-f="anum" data-p="..." oninput="D('anum',this)"></span></td>
           <td><span class="ef" contenteditable="true" id="d-cnum" data-f="cnum" data-p="..." oninput="D('cnum',this)"></span></td>
           <td><span class="ef" contenteditable="true" id="d-clm" data-f="clm" data-p="..." oninput="D('clm',this)"></span></td>
@@ -427,7 +435,7 @@
       </div>
 
       <div class="il" id="d-depr-line" style="display:none"><span class="rl">3) نقصان القيمة : </span><span class="ef" contenteditable="true" id="d-depr" data-f="depr" data-p="0" oninput="D('depr',this);calc()"></span><span id="d-depr-suffix" style="display:none"> دينار</span><span id="d-depr-reason-txt" style="display:none"></span></div>
-      <div class="il"><span class="rl">4) العطل : </span><span id="d-bx" style="text-decoration:underline">0*10</span><span> = </span><span class="rl" id="d-bv" style="text-decoration:underline">0</span><span> <b>دينار.</b></span></div>
+      <div class="il"><span class="rl">4) العطل : </span><span id="d-bx" style="text-decoration:none">0*10</span><span> = </span><span class="rl" id="d-bv" style="text-decoration:none">0</span><span> <b>دينار.</b></span></div>
 
       <!-- Prior incidents — hidden when empty -->
       <div id="d-prior-sec" style="display:none">
