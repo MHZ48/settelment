@@ -1375,7 +1375,7 @@ function renderDocPriors(){
   sec.style.display='';
   rows.innerHTML=priors.map(p=>{
     const dmg=Array.isArray(p.damage)?p.damage.join('+'):(p.damage||'___');
-    return `<div class="il">حادث وقع بتاريخ <b>${p.date||'___'}</b> وكانت الاضرار <span class="pdmg">${dmg||'___'}</span></div>`;
+    return `<div class="il">حادث وقع بتاريخ <b>${(p.date||'___').replace(/-/g,'/')}</b> وكانت الاضرار <span class="pdmg">${dmg||'___'}</span></div>`;
   }).join('');
   chkConf();
   checkTaqabul();
@@ -1450,7 +1450,7 @@ function renderDocAfters(){
   sec.style.display='';
   rows.innerHTML=afters.map(p=>{
     const dmg=Array.isArray(p.damage)?p.damage.join('+'):(p.damage||'___');
-    return `<div class="il">حادث وقع بتاريخ <b>${p.date||'___'}</b> وكانت الاضرار <span>${dmg||'___'}</span></div>`;
+    return `<div class="il">حادث وقع بتاريخ <b>${(p.date||'___').replace(/-/g,'/')}</b> وكانت الاضرار <span>${dmg||'___'}</span></div>`;
   }).join('');
   checkTaqabul();
 }
