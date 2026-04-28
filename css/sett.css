@@ -112,7 +112,7 @@ html,body{height:100%;font-family:'Tajawal',sans-serif;direction:rtl;background:
 .dtit{text-align:center;font-size:18px;font-weight:900;text-decoration:underline;margin:2px 0 8px;color:#000}
 .ds{font-weight:700;font-size:13px;margin:8px 0 3px;color:#111}
 /* editable inline field */
-.ef{display:inline;border-bottom:1px solid #555;min-width:55px;padding:0 3px;color:#00008b;outline:none;cursor:text}
+.ef{display:inline;border-bottom:1px solid #555;min-width:55px;padding:0 3px;color:#000000;outline:none;cursor:text}
 .ef:empty:before{content:attr(data-p);color:#bbb;font-style:italic;font-size:.85em;pointer-events:none}
 .ef.conflict{color:rgb(0, 0, 0)!important;border-bottom-color:rgb(0, 0, 0)!important;font-weight:700}
 /* tables */
@@ -144,13 +144,15 @@ hr.sd{border:none;border-top:1.5px solid #888;margin:8px 0}
 
 @media print{
   @page{size:A4;margin:0}
+  html,body{overflow:visible!important;height:auto!important}
+  #app{height:auto!important;overflow:visible!important;display:block!important}
   #hdr,#form,#rwrap,#tb,#modal{display:none!important}
-  #body{display:block}
-  #doc{padding:0;background:#fff}
-  #page,.p-page{box-shadow:none;width:210mm;max-width:210mm;min-height:297mm;border-radius:0}
-  #dcon,.p-dcon{padding:4px 30px}
-  .page-wrap{page-break-after:always;page-break-inside:avoid}
-  .page-wrap+.page-wrap{page-break-before:always}
+  #body{display:block!important;overflow:visible!important;height:auto!important}
+  #doc{padding:0!important;background:#fff!important;overflow:visible!important;height:auto!important;display:block!important;align-items:unset!important;gap:0!important}
+  #page,.p-page{box-shadow:none!important;width:210mm!important;max-width:210mm!important;height:297mm!important;overflow:hidden!important;border-radius:0!important}
+  #dcon,.p-dcon{padding:4px 30px!important;overflow:visible!important}
+  .page-wrap{page-break-after:always!important;page-break-inside:avoid!important;break-after:page!important;margin-top:0!important}
+  .page-wrap+.page-wrap{page-break-before:always!important;break-before:page!important}
   #wm,.khtm,[style*="position:absolute"][style*="opacity"]{-webkit-print-color-adjust:exact;print-color-adjust:exact;display:block!important}
 }
 .page-wrap { width: 100%; max-width: 860px; }
