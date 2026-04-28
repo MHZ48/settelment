@@ -1485,9 +1485,9 @@ body{font-family:'Tajawal',sans-serif;direction:rtl;background:#fff;color:#111;m
 .ds{font-weight:700;font-size:13px;margin:8px 0 3px}
 .ef{display:inline;border-bottom:1px solid #555;min-width:55px;padding:0 3px;color:#000000}
 .dt{width:100%;border-collapse:collapse;margin:4px 0;font-size:12px}
-.dt th{background:#e6f2ee;border:1px solid #777;padding:4px 7px;text-align:center;font-weight:700;color:#8B0000;text-decoration:underline}
+.dt th{background:#e6f2ee;border:1px solid #777;padding:4px 7px;text-align:center;font-weight:700;color:#cc0000;text-decoration:underline}
 .dt td{border:1px solid #777;padding:4px 7px;text-align:center;vertical-align:middle}
-.dt td.lh{background:#e6f2ee;font-weight:700;color:#8B0000;text-decoration:underline;text-align:right}
+.dt td.lh{background:#e6f2ee;font-weight:700;color:#cc0000;text-decoration:underline;text-align:right}
 .dt .tot td{border-top:2px solid #555;font-weight:700;background:#f9f5ec}
 .rl{color:#cc0000;font-weight:700;text-decoration:underline}
 .bl{color:#000000;font-weight:700}
@@ -1623,11 +1623,11 @@ function saveAsWord() {
 
   // Table cell base styles (fully inlined hex, no shorthand that Word misreads)
   const CELL = {
-    th:    'background:#ffffff;border:1px solid #777777;padding:4px 7px;text-align:center;font-weight:700;color:#8b0000;text-decoration:underline',
+    th:    'background:#ffffff;border:1px solid #777777;padding:4px 7px;text-align:center;font-weight:700;color:#cc0000;text-decoration:underline',
     td:    'border:1px solid #777777;padding:4px 7px;text-align:center;vertical-align:middle',
-    lh:    'background:#ffffff;border:1px solid #777777;padding:4px 7px;font-weight:700;color:#8b0000;text-decoration:underline;text-align:right',
+    lh:    'background:#ffffff;border:1px solid #777777;padding:4px 7px;font-weight:700;color:#cc0000;text-decoration:underline;text-align:right',
     totTd: 'border:1px solid #777777;border-top:2px solid #555555;padding:4px 7px;font-weight:700;background:#f9f5ec;text-align:center;vertical-align:middle',
-    totLh: 'border:1px solid #777777;border-top:2px solid #555555;padding:4px 7px;font-weight:700;background:#f9f5ec;color:#8b0000;text-decoration:underline;text-align:right',
+    totLh: 'border:1px solid #777777;border-top:2px solid #555555;padding:4px 7px;font-weight:700;background:#f9f5ec;color:#cc0000;text-decoration:underline;text-align:right',
   };
 
   function wordify(root) {
