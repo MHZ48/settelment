@@ -1543,14 +1543,14 @@ function _exportFileName(numId, yrId, fallback) {
 async function saveAsWord() {
   try {
     // 1. Fetch the local Word template (must be served — file:// will hit CORS)
-    const response = await fetch('./tem/template.docx');
+    const response = await fetch('js/template.docx');
     if (!response.ok) throw new Error('TEMPLATE_FETCH_FAILED:' + response.status);
     const buffer = await response.arrayBuffer();
 
     // Sanity check — a real .docx is a ZIP, so it must start with "PK".
     const head = new Uint8Array(buffer, 0, Math.min(4, buffer.byteLength));
     if (head[0] !== 0x50 || head[1] !== 0x4B) {
-      throw new Error('NOT_A_DOCX: tem/template.docx is not a valid Word/.docx file (likely the server returned HTML for a missing path).');
+      throw new Error('NOT_A_DOCX: js/template.docx is not a valid Word/.docx file (likely the server returned HTML for a missing path).');
     }
 
     // 2. Load buffer into PizZip and initialize docxtemplater.
@@ -1697,7 +1697,8 @@ async function saveAsWord() {
       type: 'blob',
       mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     });
-    saveAs(blob, 'تقرير-التسوية.docx');
+    const fname = _exportFileName('f-anum-num', 'f-anum-yr', 'تقرير-التسوية');
+    saveAs(blob, fname + '.docx');
 
   } catch (err) {
     console.error('saveAsWord error:', err);
@@ -1721,9 +1722,9 @@ async function saveAsWord() {
     let userMsg;
     if (msg.startsWith('TEMPLATE_FETCH_FAILED') || name === 'TypeError' || msg.includes('Failed to fetch')) {
       userMsg = 'تعذّر تحميل قالب Word.\n'
-              + 'تأكد من وجود الملف tem/template.docx، ومن تشغيل الموقع عبر سيرفر محلي (مثل XAMPP) وليس بفتح الملف مباشرةً عبر file://.';
+              + 'تأكد من وجود الملف js/template.docx، ومن تشغيل الموقع عبر سيرفر محلي (مثل XAMPP) وليس بفتح الملف مباشرةً عبر file://.';
     } else if (msg.startsWith('NOT_A_DOCX')) {
-      userMsg = 'الملف tem/template.docx ليس ملف Word صالحاً.\n'
+      userMsg = 'الملف js/template.docx ليس ملف Word صالحاً.\n'
               + 'تأكد من أن الملف موجود فعلاً في المسار الصحيح وأنه ملف .docx حقيقي.';
     } else if (msg.startsWith('LIB_MISSING')) {
       userMsg = 'لم يتم تحميل المكتبات المطلوبة (PizZip / docxtemplater / FileSaver).\n'
