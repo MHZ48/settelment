@@ -1540,309 +1540,164 @@ function _exportFileName(numId, yrId, fallback) {
   return raw.replace(/[\\/:*?"<>|]/g, '_');
 }
 
-function saveAsWord() {
-  const def   = _exportFileName('f-anum-num', 'f-anum-yr', 'تقرير-التسوية');
-  const input = prompt('اسم ملف Word', def);
-  if (input === null) return;
-  const fname = (input.trim() || def).replace(/[\\/:*?"<>|]/g, '_');
+async function saveAsWord() {
+  try {
+    // 1. Fetch the local Word template (must be served — file:// will hit CORS)
+    const response = await fetch('./tem/template.docx');
+    if (!response.ok) throw new Error('TEMPLATE_FETCH_FAILED:' + response.status);
+    const buffer = await response.arrayBuffer();
 
-  const dcons = [document.getElementById('dcon'), ...document.querySelectorAll('.p-dcon')].filter(Boolean);
-
-  // Extract {type, b64} from a data: URI, or convert via canvas for file-path images
-  function getImgData(el) {
-    if (!el) return null;
-    const src = el.src || '';
-    // Already a base64 data URL — extract directly
-    const m = src.match(/^data:([^;,]+);base64,(.+)$/s);
-    if (m) return { type: m[1], b64: m[2] };
-    // File-path image — try canvas (same-origin only)
-    try {
-      const c = document.createElement('canvas');
-      c.width  = el.naturalWidth  || el.width  || 1;
-      c.height = el.naturalHeight || el.height || 1;
-      c.getContext('2d').drawImage(el, 0, 0);
-      const du = c.toDataURL('image/png');
-      const m2 = du.match(/^data:([^;,]+);base64,(.+)$/s);
-      return m2 ? { type: m2[1], b64: m2[2] } : null;
-    } catch(e) { return null; }
-  }
-
-  const hData  = getImgData(document.getElementById('himg'));
-  const fData  = getImgData(document.getElementById('fimg'));
-  const wmData = getImgData(document.getElementById('wm'));
-
-  // Decode base64 → Uint8Array for ZIP embedding
-  function b64ToBytes(b64) {
-    const bin = atob(b64.replace(/\s+/g, ''));
-    const out = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-    return out;
-  }
-  // Register image as a media file in the DOCX ZIP; return relative URL from word/afchunk.htm
-  const mediaFiles = [];
-  function addMedia(data, name) {
-    if (!data) return '';
-    const ext = (data.type || 'image/png').split('/')[1].replace(/;.*/, '').replace('jpeg','jpg');
-    const fname = name + '.' + ext;
-    mediaFiles.push({ path: 'word/media/' + fname, data: b64ToBytes(data.b64) });
-    return 'media/' + fname;
-  }
-  const hSrc  = addMedia(hData,  'header');
-  const fSrc  = addMedia(fData,  'footer');
-  const wmSrc = addMedia(wmData, 'wm');
-
-  const hTag = hSrc ? `<img src="${hSrc}" width="100%" border="0" alt="" style="display:block;width:100%">` : '';
-  const fTag = fSrc ? `<img src="${fSrc}" width="100%" border="0" alt="" style="display:block;width:100%">` : '';
-  const wmVml = wmSrc ? `<!--[if gte mso 9]><v:shape xmlns:v="urn:schemas-microsoft-com:vml" type="#_x0000_t75" style="position:absolute;width:450pt;height:450pt;z-index:-251659264;mso-position-horizontal:center;mso-position-vertical:center;mso-position-horizontal-relative:page;mso-position-vertical-relative:page" stroked="f" filled="f"><v:imagedata src="${wmSrc}" o:title="watermark" gain="0.78" blacklevel="-0.22"/></v:shape><![endif]-->` : '';
-
-  // Strip CSS properties Word can't handle; preserve display:none/block/inline
-  function safeStyle(s) {
-    if (!s) return '';
-    const BLOCKED = new Set(['min-width','max-width','position','transform','transition',
-      'animation','flex','flex-direction','flex-shrink','flex-grow','flex-wrap','flex-basis',
-      'align-items','align-self','justify-content','gap','row-gap','column-gap',
-      'z-index','opacity','border-radius','box-shadow','cursor','user-select','outline',
-      'overflow','overflow-x','overflow-y','pointer-events','object-fit',
-      'grid','grid-template','grid-column','grid-row','letter-spacing']);
-    return s.split(';').map(p => p.trim()).filter(p => {
-      if (!p || !p.includes(':')) return false;
-      if (p.includes('var(--')) return false;
-      const prop = p.split(':')[0].trim().toLowerCase();
-      if (BLOCKED.has(prop)) return false;
-      if (prop === 'display') {
-        const val = p.split(':').slice(1).join(':').trim().toLowerCase();
-        return ['block','inline','inline-block','none','table','table-cell','table-row'].includes(val);
-      }
-      return true;
-    }).join(';');
-  }
-
-  // Map CSS classes → fully inlined Word-safe styles
-  const CMAP = {
-    'dtit':     'display:block;text-align:center;font-size:18px;font-weight:900;text-decoration:none;margin:2px 0 8px;color:#000000',
-    'ds':       'display:block;font-weight:700;font-size:13px;margin:8px 0 3px;color:#111111',
-    'ef':       'display:inline;border-bottom:1px solid #555555;padding:0 3px;color:#000000',
-    'conflict': 'color:#cc0000;border-bottom:1px solid #cc0000;font-weight:700',
-    'rl':       'color:#cc0000;font-weight:700;text-decoration:none',
-    'bl':       'color:#000000;font-weight:700',
-    'il':       'display:block;margin:3px 0;font-weight:700',
-    'yb':       'display:block;border:2px solid #8b6010;background:#fffce6;padding:7px 12px;margin:7px 0;text-align:center;font-weight:700;font-size:14px;color:#5a0000',
-    'brb':      'display:block;border:2px solid #7a5c2a;padding:7px 11px;margin:4px 0',
-    'pdmg':     'font-weight:700',
-  };
-
-  // Table cell base styles (fully inlined hex, no shorthand that Word misreads)
-  const CELL = {
-    th:    'background:#ffffff;border:1px solid #777777;padding:4px 7px;text-align:center;font-weight:700;color:#cc0000;text-decoration:none',
-    td:    'border:1px solid #777777;padding:4px 7px;text-align:center;vertical-align:middle',
-    lh:    'background:#ffffff;border:1px solid #777777;padding:4px 7px;font-weight:700;color:#cc0000;text-decoration:none;text-align:right',
-    totTd: 'border:1px solid #777777;border-top:2px solid #555555;padding:4px 7px;font-weight:700;background:#f9f5ec;text-align:center;vertical-align:middle',
-    totLh: 'border:1px solid #777777;border-top:2px solid #555555;padding:4px 7px;font-weight:700;background:#f9f5ec;color:#cc0000;text-decoration:none;text-align:right',
-  };
-
-  function wordify(root) {
-    // Phase 1: Mark content tables (.dt) and their cells BEFORE any class removal
-    root.querySelectorAll('table.dt').forEach(t => t.setAttribute('data-wdt','1'));
-    root.querySelectorAll('table.dt th').forEach(t => t.setAttribute('data-wth','1'));
-    root.querySelectorAll('table.dt td').forEach(t => t.setAttribute('data-wtd','1'));
-    root.querySelectorAll('tr.tot').forEach(tr =>
-      tr.querySelectorAll('td,th').forEach(c => c.setAttribute('data-wtot','1'))
-    );
-    // Phase 2: Apply class → inline style
-    Object.entries(CMAP).forEach(([cls, style]) =>
-      root.querySelectorAll('.'+cls).forEach(el => {
-        const ex = safeStyle(el.getAttribute('style') || '');
-        el.setAttribute('style', style + (ex ? ';'+ex : ''));
-      })
-    );
-    // Phase 3: All tables — content tables get margin+font-size, layout tables don't
-    root.querySelectorAll('table').forEach(tbl => {
-      const isContent = tbl.getAttribute('data-wdt') === '1';
-      const ex = safeStyle(tbl.getAttribute('style') || '');
-      const base = isContent
-        ? 'width:100%;border-collapse:collapse;margin:4px 0;font-size:12px;direction:rtl'
-        : 'width:100%;border-collapse:collapse;direction:rtl';
-      tbl.setAttribute('style', base + (ex?';'+ex:''));
-      tbl.setAttribute('width','100%'); tbl.setAttribute('cellpadding','0');
-      tbl.setAttribute('cellspacing','0'); tbl.setAttribute('border','0');
-      tbl.setAttribute('dir','rtl'); tbl.removeAttribute('class');
-    });
-    // Phase 4: th — content table headers get border styling; others just get dir
-    root.querySelectorAll('[data-wth]').forEach(th => {
-      const ex = safeStyle(th.getAttribute('style') || '');
-      th.setAttribute('style', CELL.th + (ex?';'+ex:''));
-      th.setAttribute('dir','rtl'); th.removeAttribute('class');
-    });
-    root.querySelectorAll('th:not([data-wth])').forEach(th => {
-      const ex = safeStyle(th.getAttribute('style') || '');
-      if (ex) th.setAttribute('style', ex); else th.removeAttribute('style');
-      th.setAttribute('dir','rtl'); th.removeAttribute('class');
-    });
-    // Phase 5: td — content table cells get borders; layout cells keep only safe inline styles
-    root.querySelectorAll('[data-wtd]').forEach(td => {
-      const cls   = td.getAttribute('class') || '';
-      const isTot = td.getAttribute('data-wtot') === '1';
-      const isLh  = cls.includes('lh');
-      const ex    = safeStyle(td.getAttribute('style') || '');
-      const base  = isTot ? (isLh ? CELL.totLh : CELL.totTd) : (isLh ? CELL.lh : CELL.td);
-      td.setAttribute('style', base + (ex?';'+ex:''));
-      td.setAttribute('dir','rtl'); td.setAttribute('valign','middle');
-      if (isLh) td.setAttribute('align','right');
-      td.removeAttribute('class');
-    });
-    root.querySelectorAll('td:not([data-wtd])').forEach(td => {
-      const ex = safeStyle(td.getAttribute('style') || '');
-      if (ex) td.setAttribute('style', ex); else td.removeAttribute('style');
-      td.setAttribute('dir','rtl'); td.setAttribute('valign','top');
-      td.removeAttribute('class');
-    });
-    // Phase 6: tr
-    root.querySelectorAll('tr').forEach(tr => {
-      tr.setAttribute('dir','rtl'); tr.removeAttribute('class');
-    });
-    // Phase 7: Clean all remaining inline styles (strip unsupported props from any missed elements)
-    root.querySelectorAll('[style]').forEach(el => {
-      const c = safeStyle(el.getAttribute('style'));
-      if (c) el.setAttribute('style', c); else el.removeAttribute('style');
-    });
-    // Phase 8: Remove all temp markers and leftover class attributes
-    ['class','data-wdt','data-wth','data-wtd','data-wtot'].forEach(attr =>
-      root.querySelectorAll('['+attr+']').forEach(el => el.removeAttribute(attr))
-    );
-  }
-
-  const pagesHTML = dcons.map((dc, idx) => {
-    const clone = dc.cloneNode(true);
-
-    // Strip interactive attrs; keep inline styles for now (wordify handles them)
-    ['contenteditable','spellcheck','oninput','onchange','onclick','onblur',
-     'onmousedown','onfocus','onkeyup','onkeydown','data-p','data-f','title'].forEach(attr =>
-      clone.querySelectorAll('['+attr+']').forEach(el => el.removeAttribute(attr))
-    );
-    clone.querySelectorAll('input,button').forEach(el => el.remove());
-
-    // Convert .sbs flex rows → legacy nested table columns
-    clone.querySelectorAll('.sbs').forEach(sbs => {
-      const cols  = Array.from(sbs.children);
-      if (!cols.length) return;
-      const total = cols.reduce((s,c) => s + (parseFloat(c.style.flex)||1), 0);
-      const tmp   = document.createElement('div');
-      tmp.innerHTML = `<table width="100%" cellpadding="0" cellspacing="0" border="0" dir="rtl" style="width:100%;border-collapse:collapse;margin:5px 0;direction:rtl"><tr dir="rtl">${
-        cols.map(c => {
-          const pct = Math.round((parseFloat(c.style.flex)||1)/total*100);
-          return `<td width="${pct}%" valign="top" dir="rtl" style="width:${pct}%;vertical-align:top;padding:0 3px">${c.innerHTML}</td>`;
-        }).join('')
-      }</tr></table>`;
-      sbs.parentNode.replaceChild(tmp.firstElementChild, sbs);
-    });
-
-    wordify(clone);
-
-    const pb = idx < dcons.length - 1 ? 'page-break-after:always;mso-break-type:section-break' : '';
-    return `<div style="${pb?pb+';':''}direction:rtl">
-${wmVml}<table width="100%" cellpadding="0" cellspacing="0" border="0" dir="rtl" style="width:100%;border-collapse:collapse;border:none;direction:rtl">
-<tr dir="rtl"><td style="padding:0;border:none;line-height:0;font-size:0">${hTag}</td></tr>
-<tr dir="rtl"><td dir="rtl" valign="top" style="padding:4px 36px 12px;direction:rtl;font-size:13px;line-height:1.7;color:#111111;vertical-align:top;font-family:Arial,sans-serif;text-align:right;border:none">${clone.innerHTML}</td></tr>
-<tr dir="rtl"><td style="padding:0;border:none;line-height:0;font-size:0">${fTag}</td></tr>
-</table></div>`;
-  }).join('\n');
-
-  const htmlContent = `<!DOCTYPE html>
-<html xmlns:o="urn:schemas-microsoft-com:office:office"
-      xmlns:w="urn:schemas-microsoft-com:office:word"
-      xmlns:v="urn:schemas-microsoft-com:vml"
-      xmlns="http://www.w3.org/TR/REC-html40" lang="ar" dir="rtl">
-<head>
-<meta charset="UTF-8">
-<meta name=ProgId content=Word.Document>
-<title>${fname}</title>
-<!--[if gte mso 9]><xml>
-<w:WordDocument>
-  <w:View>Print</w:View><w:Zoom>100</w:Zoom>
-  <w:DoNotOptimizeForBrowser/><w:BiDi/><w:DisplayBackgrounds/>
-</w:WordDocument></xml><![endif]-->
-<style>
-<!--
-@page WordSection1{size:210mm 297mm;margin:0mm;mso-header-margin:0mm;mso-footer-margin:0mm;mso-paper-source:0}
-div.WordSection1{page:WordSection1;margin:0;padding:0;border:none}
-body{font-family:Arial,sans-serif;direction:rtl;margin:0;padding:0;border:none}
-p{margin:0;padding:0}
-td{mso-line-height-rule:exactly}
-table{mso-table-bspace:0;mso-table-rspace:0}
-div{border:none}
--->
-</style>
-</head>
-<body dir="rtl" style="direction:rtl;margin:0;padding:0;border:none;font-family:Arial,sans-serif">
-<div class="WordSection1" style="margin:0;padding:0;border:none;direction:rtl">
-${pagesHTML}
-</div>
-</body>
-</html>`;
-
-  // ── Minimal ZIP writer (STORE, no compression) ──────────────────────────────
-  function _zcat(arrs) {
-    const tot = arrs.reduce((s,a)=>s+a.length,0), out = new Uint8Array(tot); let p=0;
-    for (const a of arrs) { out.set(a,p); p+=a.length; }
-    return out;
-  }
-  function _zcrc(buf) {
-    const t=new Uint32Array(256);
-    for(let i=0;i<256;i++){let c=i;for(let j=0;j<8;j++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[i]=c;}
-    let crc=0xFFFFFFFF;
-    for(let i=0;i<buf.length;i++) crc=t[(crc^buf[i])&0xFF]^(crc>>>8);
-    return (crc^0xFFFFFFFF)>>>0;
-  }
-  function makeDocx(files) {
-    const enc=s=>new TextEncoder().encode(s);
-    const u16=n=>new Uint8Array([n&0xFF,(n>>8)&0xFF]);
-    const u32=n=>new Uint8Array([n&0xFF,(n>>8)&0xFF,(n>>16)&0xFF,(n>>>24)&0xFF]);
-    const lps=[],cds=[]; let off=0;
-    for(const{path,data}of files){
-      const nb=enc(path), fb=typeof data==='string'?enc(data):data;
-      const crc=_zcrc(fb), sz=fb.length;
-      const lh=_zcat([new Uint8Array([0x50,0x4B,0x03,0x04]),u16(20),u16(0),u16(0),u16(0),u16(0),u32(crc),u32(sz),u32(sz),u16(nb.length),u16(0),nb,fb]);
-      const cd=_zcat([new Uint8Array([0x50,0x4B,0x01,0x02]),u16(20),u16(20),u16(0),u16(0),u16(0),u16(0),u32(crc),u32(sz),u32(sz),u16(nb.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(off),nb]);
-      lps.push(lh); cds.push(cd); off+=lh.length;
+    // Sanity check — a real .docx is a ZIP, so it must start with "PK".
+    const head = new Uint8Array(buffer, 0, Math.min(4, buffer.byteLength));
+    if (head[0] !== 0x50 || head[1] !== 0x4B) {
+      throw new Error('NOT_A_DOCX: tem/template.docx is not a valid Word/.docx file (likely the server returned HTML for a missing path).');
     }
-    const cdSz=cds.reduce((s,p)=>s+p.length,0);
-    return _zcat([...lps,...cds,_zcat([new Uint8Array([0x50,0x4B,0x05,0x06]),u16(0),u16(0),u16(files.length),u16(files.length),u32(cdSz),u32(off),u16(0)])]);
+
+    // 2. Load buffer into PizZip and initialize docxtemplater.
+    //    The CDN build of docxtemplater 3.x exposes window.docxtemplater (lowercase),
+    //    but some bundles / versions use Docxtemplater — handle both.
+    if (typeof PizZip !== 'function') {
+      throw new Error('LIB_MISSING: PizZip did not load. Check the <script> CDN tags in <head>.');
+    }
+    const Dx = window.docxtemplater || window.Docxtemplater;
+    if (typeof Dx !== 'function') {
+      throw new Error('LIB_MISSING: docxtemplater did not load. Check the <script> CDN tags in <head>.');
+    }
+    if (typeof saveAs !== 'function') {
+      throw new Error('LIB_MISSING: FileSaver.js (saveAs) did not load. Check the <script> CDN tags in <head>.');
+    }
+
+    const zip = new PizZip(buffer);
+    const doc = new Dx(zip, {
+      paragraphLoop: true,
+      linebreaks: true,
+    });
+
+    // 3. Helpers — read form input values and document spans
+    const v = id => (document.getElementById(id)?.value || '').toString().trim();
+    const t = id => (document.getElementById(id)?.textContent || '').toString().trim();
+    const half50 = ' (50%)';
+
+    // 4. Process the global parts array for {#parts}…{/parts} loops.
+    //    Each entry exposes:
+    //       - name    (with " (50%)" suffix when half is true)
+    //       - price   (numeric, halved when half is true)
+    //       - subs    (nested loop, each with name/price and (50%) handling)
+    //       - total   (base + subs)
+    const partsData = (typeof parts !== 'undefined' ? parts : []).map((p, i) => {
+      const baseName  = (p.name || '') + (p.half ? half50 : '');
+      const basePrice = parseFloat(p.price) || 0;
+      const subsArr   = Array.isArray(p.subs) ? p.subs : (p.sub ? [{ name: p.sub, price: '' }] : []);
+
+      const subs = subsArr.map(s => {
+        const sObj   = (typeof s === 'object' && s) ? s : { name: s, price: '' };
+        const sName  = (sObj.name || '').toString().trim();
+        const sPrice = parseFloat(sObj.price) || 0;
+        const sHalf  = !!sObj.half;
+        return {
+          name:  sName + (sHalf ? half50 : ''),
+          price: sHalf ? sPrice * 0.5 : sPrice,
+        };
+      });
+
+      const subsTotal = subs.reduce((a, s) => a + (s.price || 0), 0);
+      const ownPrice  = p.half ? basePrice * 0.5 : basePrice;
+
+      return {
+        index: i + 1,
+        name:  baseName,
+        price: ownPrice,
+        subs,
+        total: ownPrice + subsTotal,
+      };
+    });
+
+    // 5. Process the global repairs array for {#repairs}…{/repairs} loops.
+    const repairsData = (typeof repairs !== 'undefined' ? repairs : []).map((r, i) => ({
+      index: i + 1,
+      name:  (r.name || '').toString(),
+    }));
+
+    // 6. Build the data object — form fields → English template keys
+    const data = {
+      report_date:    v('f-rdate'),
+      incident_date:  v('f-idate'),
+      incident_num:   v('f-anum-num'),
+      incident_year:  v('f-anum-yr'),
+      claim_num:      v('f-cnum-num'),
+      claim_year:     v('f-cnum-yr'),
+      claim_name:     v('f-clm'),
+      vehicle_num:    v('f-vnum'),
+      vehicle_make:   v('f-vtype'),
+      vehicle_model:  v('f-vcls'),
+      vehicle_year:   v('f-vmod-display'),
+      vehicle_color:  v('f-vcolor'),
+      vehicle_reg:    v('f-vreg'),
+      liability:      v('f-resp'),
+      wages:          v('f-wages'),
+      depreciation:   v('f-depr'),
+      depr_pct:       v('f-deprpct'),
+      vehicle_post:   v('f-vpost'),
+      breakdown_expr: t('d-bx'),
+      breakdown_val:  t('d-bv'),
+      damage_areas:   t('d-darea'),
+      description:    t('d-ddesc'),
+      parts:          partsData,
+      repairs:        repairsData,
+      parts_total:    partsData.reduce((a, p) => a + (p.total || 0), 0),
+    };
+
+    // 7. Render the template with the data
+    doc.render(data);
+
+    // 8. Generate the .docx Blob and trigger the download via FileSaver
+    const blob = doc.getZip().generate({
+      type: 'blob',
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    });
+    saveAs(blob, 'تقرير-التسوية.docx');
+
+  } catch (err) {
+    console.error('saveAsWord error:', err);
+
+    // Pull docxtemplater per-tag errors (template syntax / missing tags) into a list
+    let dxErrors = '';
+    if (err && err.properties && Array.isArray(err.properties.errors)) {
+      console.error('docxtemplater errors:', err.properties.errors);
+      dxErrors = err.properties.errors.slice(0, 5).map(e => {
+        const where = e.properties && (e.properties.file || e.properties.context || '');
+        return '• ' + (e.message || e.name) + (where ? '  [' + where + ']' : '');
+      }).join('\n');
+    } else if (err && err.properties && err.properties.id) {
+      // Single-error case (e.g., scopeparser issue, render failure)
+      dxErrors = '• ' + err.properties.id + ': ' + (err.message || '');
+    }
+
+    const msg  = (err && err.message) || String(err);
+    const name = err && err.name;
+
+    let userMsg;
+    if (msg.startsWith('TEMPLATE_FETCH_FAILED') || name === 'TypeError' || msg.includes('Failed to fetch')) {
+      userMsg = 'تعذّر تحميل قالب Word.\n'
+              + 'تأكد من وجود الملف tem/template.docx، ومن تشغيل الموقع عبر سيرفر محلي (مثل XAMPP) وليس بفتح الملف مباشرةً عبر file://.';
+    } else if (msg.startsWith('NOT_A_DOCX')) {
+      userMsg = 'الملف tem/template.docx ليس ملف Word صالحاً.\n'
+              + 'تأكد من أن الملف موجود فعلاً في المسار الصحيح وأنه ملف .docx حقيقي.';
+    } else if (msg.startsWith('LIB_MISSING')) {
+      userMsg = 'لم يتم تحميل المكتبات المطلوبة (PizZip / docxtemplater / FileSaver).\n'
+              + 'تحقّق من وسوم <script> في <head> داخل index.html، ومن اتصال الإنترنت لأن الروابط من CDN.';
+    } else if (dxErrors) {
+      userMsg = 'خطأ في القالب (template.docx):\n' + dxErrors
+              + '\n\nراجع الكونسول للتفاصيل الكاملة.';
+    } else {
+      userMsg = 'حدث خطأ أثناء إنشاء ملف Word.\n\n'
+              + (name ? name + ': ' : '') + msg
+              + '\n\nراجع الكونسول للتفاصيل.';
+    }
+    alert(userMsg);
   }
-
-  // ── DOCX package parts ────────────────────────────────────────────────────────
-  // Relationships from afchunk.htm to its media images
-  const chunkRelsXml = mediaFiles.length
-    ? `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${
-        mediaFiles.map((f,i)=>`<Relationship Id="rImg${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="${f.path.slice(5)}"/>`).join('')
-      }</Relationships>`
-    : null;
-
-  const imgExts = [...new Set(mediaFiles.map(f=>f.path.split('.').pop()))];
-  const ctXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="htm" ContentType="text/html"/>${imgExts.map(e=>`<Default Extension="${e}" ContentType="image/${e==='jpg'?'jpeg':e}"/>`).join('')}<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`;
-
-  const pkgRelsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`;
-
-  const docXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body><w:altChunk r:id="rId_chunk"/><w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="0" w:right="0" w:bottom="0" w:left="0" w:header="0" w:footer="0" w:gutter="0"/><w:bidi/></w:sectPr></w:body></w:document>`;
-
-  const docRelsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId_chunk" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk" Target="afchunk.htm"/></Relationships>`;
-
-  const zipFiles = [
-    { path: '[Content_Types].xml',               data: ctXml },
-    { path: '_rels/.rels',                        data: pkgRelsXml },
-    { path: 'word/document.xml',                  data: docXml },
-    { path: 'word/_rels/document.xml.rels',        data: docRelsXml },
-    { path: 'word/afchunk.htm',                   data: htmlContent },
-    ...(chunkRelsXml ? [{ path: 'word/_rels/afchunk.htm.rels', data: chunkRelsXml }] : []),
-    ...mediaFiles,
-  ];
-
-  const blob = new Blob([makeDocx(zipFiles)], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = fname + '.docx';
-  document.body.appendChild(a); a.click();
-  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 500);
 }
+
 
 function saveAsPDF() {
   const def   = _exportFileName('f-cnum-num', 'f-cnum-yr', 'تقرير-التسوية');
