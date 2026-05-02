@@ -1618,30 +1618,72 @@ async function saveAsWord() {
       name:  (r.name || '').toString(),
     }));
 
+    // 5b. Apply business rules for description and liability.
+    //  • description: if empty, the whole section is hidden (use {#has_description}…{/has_description})
+    //  • liability:
+    //      - empty / >=100  →  "100%"
+    //      - any other number  →  "حادث مشترك/ X%"  (matches updateRespDisplay logic)
+    const rawDescription = t('d-ddesc');
+    const hasDescription = rawDescription.length > 0;
+
+    const rawLiability   = v('f-resp');
+    const liabilityNum   = parseInt(rawLiability, 10);
+    const liabilityValid = !isNaN(liabilityNum);
+    const isShared       = liabilityValid && liabilityNum < 100;
+    const liabilityPct   = (liabilityValid ? liabilityNum : 100) + '%';
+    const liabilityText  = isShared ? ('حادث مشترك/ ' + liabilityPct) : liabilityPct;
+    const liabilityFull  = isShared
+      ? ('حدود المسؤولية : حادث مشترك/ ' + liabilityPct + ' من مسؤولية على المركبة المؤمنة لدينا .')
+      : ('حدود المسؤولية : ' + liabilityPct + ' من مسؤولية على المركبة المؤمنة لدينا .');
+
     // 6. Build the data object — form fields → English template keys
     const data = {
+      // ── Header / dates ──
       report_date:    v('f-rdate'),
       incident_date:  v('f-idate'),
       incident_num:   v('f-anum-num'),
       incident_year:  v('f-anum-yr'),
       claim_num:      v('f-cnum-num'),
       claim_year:     v('f-cnum-yr'),
+      // ── Parties / policy ──
       claim_name:     v('f-clm'),
+      policy_num:     v('f-pol'),
+      // ── Vehicles ──
+      causing_vehicle_num: v('f-ccar'),  // رقم السيارة المتسببة
+      damaged_vehicle_num: v('f-vnum'),  // رقم المركبة المتضررة
+      // alias kept for backwards compatibility — same as damaged_vehicle_num
       vehicle_num:    v('f-vnum'),
+      vehicle_type:   v('f-vtype'),  // نوع المركبة
+      vehicle_class:  v('f-vcls'),   // صنف المركبة
+      // aliases kept for backwards compatibility
       vehicle_make:   v('f-vtype'),
       vehicle_model:  v('f-vcls'),
       vehicle_year:   v('f-vmod-display'),
       vehicle_color:  v('f-vcolor'),
       vehicle_reg:    v('f-vreg'),
-      liability:      v('f-resp'),
+      vehicle_post:   v('f-vpost'),
+      // ── Liability / damage ──
+      liability:        liabilityValid ? liabilityNum : 100,    // raw number (defaults to 100)
+      liability_pct:    liabilityPct,                            // "100%"  /  "75%"
+      liability_text:   liabilityText,                           // "100%"  /  "حادث مشترك/ 75%"
+      liability_full:   liabilityFull,                           // full sentence (matches doc)
+      is_shared_fault:  isShared,                                // boolean for {#is_shared_fault}…{/}
+      damage_areas:     t('d-darea'),
+      description:      rawDescription,
+      has_description:  hasDescription,                          // boolean for {#has_description}…{/}
+      // ── Money ──
       wages:          v('f-wages'),
       depreciation:   v('f-depr'),
       depr_pct:       v('f-deprpct'),
-      vehicle_post:   v('f-vpost'),
+      discount_pct:   v('f-disc'),
       breakdown_expr: t('d-bx'),
       breakdown_val:  t('d-bv'),
-      damage_areas:   t('d-darea'),
-      description:    t('d-ddesc'),
+      // ── Computed totals (read straight from the live document) ──
+      parts_sum:      t('d-pt'),     // مجموع القطع
+      net_after_disc: t('d-net'),    // بعد خصم الوكالة
+      net_final:      t('d-net2'),   // الصافي بعد الاستهلاك
+      report_total:   t('d-rp'),     // قيمة التقرير النهائية
+      // ── Loops ──
       parts:          partsData,
       repairs:        repairsData,
       parts_total:    partsData.reduce((a, p) => a + (p.total || 0), 0),
