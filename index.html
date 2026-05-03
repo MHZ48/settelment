@@ -368,7 +368,7 @@
       </div>
 
       <!-- Incident table -->
-      <table class="dt">
+      <table class="dt" style="font-weight:bold">
         <thead><tr>
           <th>تاريخ الحادث</th><th>رقم الحادث</th><th>رقم القضية</th>
           <th>اسم المدعي</th><th>رقم السيارة المتسببة</th><th>رقم البوليصة</th>
@@ -387,7 +387,7 @@
       <div class="ds">مواصفات المركبة المتضررة :</div>
 
       <!-- Vehicle table — side by side like original file -->
-      <table class="dt" style="margin-top:5px">
+      <table class="dt" style="margin-top:5px;font-weight:bold">
         <tbody>
           <tr>
             <td class="lh">رقم المركبة المتضررة:</td>
@@ -411,7 +411,7 @@
       <div class="brb" style="margin-top:5px">
         <div class="il"><span class="bl">مناطق الضرر :&nbsp;&nbsp;</span><span class="ef" contenteditable="true" id="d-darea" data-f="darea" data-p="نقاط ضرر الحادث الحالي" oninput="D('darea',this);chkConf()" style="min-width:160px;color:#000"></span></div>
         <div class="il" id="d-ddesc-wrap" style="margin-top:3px;display:none"><span class="rl">الوصف الكتابي :&nbsp;</span><span class="ef" contenteditable="true" id="d-ddesc" data-f="ddesc" data-p="..." oninput="D('ddesc',this);toggleDdescWrap(this)" style="min-width:140px;color:#000"></span></div>
-        <div class="il" style="margin-top:5px;font-size:14px" id="d-resp-line">حدود المسؤولية : <span style="color:red;font-weight:700">100%</span> من مسؤولية على المركبة المؤمنة لدينا .</div>
+        <div class="il" style="margin-top:5px;font-size:14px" id="d-resp-line">حدود المسؤولية : <span style="color:#cc0000;font-weight:700">100%</span> من مسؤولية على المركبة المؤمنة لدينا .</div>
       </div>
 
       <!-- Section 4 -->
@@ -423,7 +423,7 @@
         <div style="flex:1;min-width:0">
           <table class="dt" id="repairs-tbl">
             <tbody id="repairs-tbody"></tbody>
-            <tr><td class="il"><span class="rl">الاجور : </span><span class="ef" contenteditable="true" id="d-wages" data-f="wages" data-p="0" oninput="D('wages',this);calc()" style="min-width:30px"></span> <b>دينار</b></td></tr>
+            <tr><td class="il"><span class="rl">الاجور : </span><span class="ef" contenteditable="true" id="d-wages" data-f="wages" data-p="0" oninput="D('wages',this);calc()" style="min-width:30px;color:#cc0000"></span> <b>دينار</b></td></tr>
           </table>
         </div>
         <div style="flex:1.4;min-width:0">
@@ -439,7 +439,7 @@
         </div>
       </div>
 
-      <div class="il" id="d-depr-line" style="display:none"><span class="rl">3) نقصان القيمة : </span><span class="ef" contenteditable="true" id="d-depr" data-f="depr" data-p="0" oninput="D('depr',this);calc()"></span><span id="d-depr-suffix" style="display:none"> دينار</span><span id="d-depr-reason-txt" style="display:none"></span></div>
+      <div class="il" id="d-depr-line" style="display:none"><span class="rl">3) نقصان القيمة : </span><span class="ef" contenteditable="true" id="d-depr" data-f="depr" data-p="0" oninput="D('depr',this);calc()" style="color:#cc0000"></span><span id="d-depr-suffix" style="display:none"> دينار</span><span id="d-depr-reason-txt" style="display:none"></span></div>
       <div class="il"><span class="rl">4) العطل : </span><span id="d-bx" style="text-decoration:none">0*10</span><span> = </span><span class="rl" id="d-bv" style="text-decoration:none">0</span><span> <b>دينار.</b></span></div>
 
       <!-- Prior incidents — hidden when empty -->
@@ -457,9 +457,9 @@
       <!-- Values -->
       <div class="il" style="margin-top:7px">
         <span style="font-weight:700">قيمة المركبة قبل الحادث </span>
-        <span class="ef" contenteditable="true" id="d-vpre" data-f="vpre" data-p="0" oninput="D('vpre',this);calc()" style="min-width:35px"></span>
+        <span class="ef" contenteditable="true" id="d-vpre" data-f="vpre" data-p="0" oninput="D('vpre',this);calc()" style="min-width:35px;color:#cc0000"></span>
         <span style="font-weight:700"> دينار &nbsp; وقيمتها بعد الحادث وقبل الاصلاح هو </span>
-        <span id="d-vpost" style="min-width:35px;font-weight:700;color:#000000"></span>
+        <span id="d-vpost" style="min-width:35px;font-weight:700;color:#cc0000"></span>
         <span style="font-weight:700"> دينار.</span>
       </div>
 

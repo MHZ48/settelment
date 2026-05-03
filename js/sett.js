@@ -601,9 +601,10 @@ function buildDmgGrid(){
         });
         const sorted=[..._dmgSelected].map(Number).sort((a,b)=>a-b);
         const val=sorted.join('+');
+        const docVal=sorted.length===1?val+' فقط':val;
         document.getElementById('f-darea').value=val;
-        document.getElementById('f-darea-display').value=sorted.length?'النقاط: '+val:'';
-        S('darea',val);
+        document.getElementById('f-darea-display').value=sorted.length?'النقاط: '+docVal:'';
+        S('darea',docVal);
         chkConf();
       };
       grid.appendChild(btn);
@@ -624,9 +625,10 @@ function closeDmgModal(e){
 function applyDmgSelect(){
   const sorted=[..._dmgSelected].map(Number).sort((a,b)=>a-b);
   const val=sorted.join('+');
+  const docVal=sorted.length===1?val+' فقط':val;
   document.getElementById('f-darea').value=val;
-  document.getElementById('f-darea-display').value=sorted.length?'النقاط: '+val:'';
-  S('darea',val);
+  document.getElementById('f-darea-display').value=sorted.length?'النقاط: '+docVal:'';
+  S('darea',docVal);
   chkConf();
   document.getElementById('dmg-modal-overlay').style.display='none';
 }
@@ -1198,7 +1200,11 @@ function updateDeprDoc(val, reason){
     span.style.display='none';
     suffix.style.display='none';
     rtxt.style.display='';
-    rtxt.textContent=DEPR_REASONS[reason];
+    const txt=DEPR_REASONS[reason];
+    const pIdx=txt.indexOf('(');
+    rtxt.innerHTML=pIdx>-1
+      ?escH(txt.slice(0,pIdx))+'<span style="color:red">'+escH(txt.slice(pIdx))+'</span>'
+      :escH(txt);
   } else if(val){
     line.style.display='';
     span.style.display='';
@@ -1355,7 +1361,7 @@ function renderPriors(){
     <div class="iblk" style="position:relative">
       <div class="iblk-h"><span>سابق ${i+1}</span><button class="bsm bdel" onclick="remPrior(${i})">حذف</button></div>
       <div class="fg" style="margin-bottom:4px"><label>التاريخ</label>
-        <input type="date" value="${p.date}" oninput="priors[${i}].date=this.value;renderDocPriors();chkConf()"></div>
+        <input type="text" placeholder="dd/mm/yyyy" value="${fmtDate(p.date)!=='___'?fmtDate(p.date):''}" oninput="priors[${i}].date=parseDateInput(this.value);renderDocPriors();chkConf()"></div>
       <div class="fg"><label>نقاط الضرر</label>
         <button type="button" onclick="togglePriorPopup(${i})"
           style="width:100%;background:var(--inp);border:1px solid var(--brd);border-radius:5px;color:var(--txt);font-family:'Tajawal',sans-serif;font-size:11px;padding:5px 8px;text-align:right;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
@@ -1378,6 +1384,8 @@ function clearPriorPts(i){
   document.querySelectorAll(`[id^="prior-pt-${i}-"]`).forEach(b=>b.classList.remove('sel'));
   renderDocPriors();chkConf();
 }
+function fmtDate(d){if(!d)return'___';const[y,m,dy]=d.split('-');return`${dy}/${m}/${y}`;}
+function parseDateInput(v){const[d,m,y]=v.split('/');return(d&&m&&y)?`${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`:'';}
 function renderDocPriors(){
   const sec=document.getElementById('d-prior-sec');
   const rows=document.getElementById('d-prior-rows');
@@ -1385,7 +1393,7 @@ function renderDocPriors(){
   sec.style.display='';
   rows.innerHTML=priors.map(p=>{
     const dmg=Array.isArray(p.damage)?p.damage.join('+'):(p.damage||'___');
-    return `<div class="il">حادث وقع بتاريخ <b>${(p.date||'___').replace(/-/g,'/')}</b> وكانت الاضرار <span class="pdmg">${dmg||'___'}</span></div>`;
+    return `<div class="il">حادث وقع بتاريخ <b>${fmtDate(p.date)}</b> وكانت الاضرار <span class="pdmg">${dmg||'___'}</span></div>`;
   }).join('');
   chkConf();
   checkTaqabul();
@@ -1430,7 +1438,7 @@ function renderAfters(){
     <div class="iblk" style="position:relative">
       <div class="iblk-h"><span>لاحق ${i+1}</span><button class="bsm bdel" onclick="remAfter(${i})">حذف</button></div>
       <div class="fg" style="margin-bottom:4px"><label>التاريخ</label>
-        <input type="date" value="${p.date}" oninput="afters[${i}].date=this.value;renderDocAfters()"></div>
+        <input type="text" placeholder="dd/mm/yyyy" value="${fmtDate(p.date)!=='___'?fmtDate(p.date):''}" oninput="afters[${i}].date=parseDateInput(this.value);renderDocAfters()"></div>
       <div class="fg"><label>نقاط الضرر</label>
         <button type="button" onclick="toggleAfterPopup(${i})"
           style="width:100%;background:var(--inp);border:1px solid var(--brd);border-radius:5px;color:var(--txt);font-family:'Tajawal',sans-serif;font-size:11px;padding:5px 8px;text-align:right;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
@@ -1460,7 +1468,7 @@ function renderDocAfters(){
   sec.style.display='';
   rows.innerHTML=afters.map(p=>{
     const dmg=Array.isArray(p.damage)?p.damage.join('+'):(p.damage||'___');
-    return `<div class="il">حادث وقع بتاريخ <b>${(p.date||'___').replace(/-/g,'/')}</b> وكانت الاضرار <span>${dmg||'___'}</span></div>`;
+    return `<div class="il">حادث وقع بتاريخ <b>${fmtDate(p.date)}</b> وكانت الاضرار <span>${dmg||'___'}</span></div>`;
   }).join('');
   checkTaqabul();
 }
