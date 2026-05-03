@@ -120,7 +120,7 @@ html,body{height:100%;font-family:'Tajawal',sans-serif;direction:rtl;background:
 .dt th{background:#fff;border:1px solid #777;padding:4px 7px;text-align:center;font-weight:700;color:#cc0000;text-decoration:none}
 .dt td{border:1px solid #777;padding:4px 7px;text-align:center;vertical-align:middle}
 .dt td.lh{background:#fff;font-weight:700;color:#cc0000;text-decoration:none;text-align:right}
-.dt .tot td{border-top:2px solid #555;font-weight:700;background:#f9f5ec}
+.dt .tot td{border-top:2px solid #555;font-weight:700;background:#fff}
 .rl{color:#cc0000;font-weight:700;text-decoration:none}
 .bl{color:#000;font-weight:700}
 .brb{border:2px solid #7a5c2a;padding:7px 11px;margin:4px 0}

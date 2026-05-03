@@ -1542,9 +1542,35 @@ function _exportFileName(numId, yrId, fallback) {
 
 async function saveAsWord() {
   try {
-    // 1. Fetch the local Word template (must be served — file:// will hit CORS)
-    const response = await fetch('js/template.docx');
-    if (!response.ok) throw new Error('TEMPLATE_FETCH_FAILED:' + response.status);
+    // 1. Fetch the local Word template. Try several candidate paths so the export
+    //    works whether the site is served from /Sett/, /settelment/, or the
+    //    settelment folder itself (different XAMPP setups on different machines).
+    const TEMPLATE_CANDIDATES = [
+      'js/template.docx',
+      './js/template.docx',
+      'settelment/js/template.docx',
+      '/settelment/js/template.docx',
+      'template.docx',
+    ];
+
+    let response = null;
+    let triedPath = '';
+    let lastStatus = '';
+    let lastError = '';
+    for (const path of TEMPLATE_CANDIDATES) {
+      triedPath = path;
+      try {
+        const r = await fetch(path, { cache: 'no-store' });
+        lastStatus = String(r.status);
+        if (r.ok) { response = r; break; }
+      } catch (e) {
+        lastError = (e && e.message) || String(e);
+      }
+    }
+    if (!response) {
+      const detail = lastStatus ? ('HTTP ' + lastStatus) : (lastError || 'network error');
+      throw new Error('TEMPLATE_FETCH_FAILED:' + detail + ' (last tried: ' + triedPath + ')');
+    }
     const buffer = await response.arrayBuffer();
 
     // Sanity check — a real .docx is a ZIP, so it must start with "PK".
@@ -1721,8 +1747,12 @@ async function saveAsWord() {
 
     let userMsg;
     if (msg.startsWith('TEMPLATE_FETCH_FAILED') || name === 'TypeError' || msg.includes('Failed to fetch')) {
+      const detail = msg.replace(/^TEMPLATE_FETCH_FAILED:?/, '').trim();
+      const pageUrl = (typeof location !== 'undefined') ? location.href : '';
       userMsg = 'تعذّر تحميل قالب Word.\n'
-              + 'تأكد من وجود الملف js/template.docx، ومن تشغيل الموقع عبر سيرفر محلي (مثل XAMPP) وليس بفتح الملف مباشرةً عبر file://.';
+              + 'تأكد من وجود الملف js/template.docx بجانب index.html، ومن تشغيل الموقع عبر سيرفر محلي (مثل XAMPP) وليس بفتح الملف مباشرةً عبر file://.\n\n'
+              + 'تفاصيل الخطأ:\n' + (detail || msg) + '\n'
+              + 'الصفحة الحالية:\n' + pageUrl;
     } else if (msg.startsWith('NOT_A_DOCX')) {
       userMsg = 'الملف js/template.docx ليس ملف Word صالحاً.\n'
               + 'تأكد من أن الملف موجود فعلاً في المسار الصحيح وأنه ملف .docx حقيقي.';
