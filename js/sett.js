@@ -35,7 +35,8 @@ Promise.all([
   // أ) تجهيز الماركات
   makesData.forEach(make => {
     makeMap[make.id] = make.make_name;
-    CAR_DATA[make.make_name] = []; // مصفوفة فارغة لكل ماركة
+    CAR_DATA[make.make_name] = [];
+    MAKE_NAME_TO_ID[make.make_name] = make.id;
   });
 
   // ب) توزيع الأصناف داخل ماركاتها بناءً على make_id
@@ -79,13 +80,6 @@ Promise.all([
   }
 
   console.log("✅ تم تحميل جميع البيانات من Supabase بنجاح ورطها بالتطبيق!");
-
-  // أ) تجهيز الماركات وحفظ الـ IDs
-makesData.forEach(make => {
-  MAKE_NAME_TO_ID[make.make_name] = make.id; // حفظ الـ ID
-  makeMap[make.id] = make.make_name;
-  CAR_DATA[make.make_name] = [];
-});
 })
 .catch(error => console.error('❌ حدث خطأ أثناء جلب البيانات من Supabase:', error));
 
@@ -169,53 +163,37 @@ async function insertAndReturnDB(tableName, record) {
 // إضافة ماركة جديدة (تويوتا، كيا...)
 async function checkNewMake(makeName) {
   if (!makeName || CAR_DATA[makeName]) return;
-
-  if (confirm(`نوع المركبة "${makeName}" جديد، هل تريد إضافته للنظام؟`)) {
-    const inserted = await insertAndReturnDB('car_makes', { make_name: makeName });
-    if (inserted) {
-      CAR_DATA[makeName] = [];
-      MAKE_NAME_TO_ID[makeName] = inserted.id;
-      fillMakesDatalist(); // re-render sorted
-      alert("✅ تم إضافة النوع بنجاح");
-    }
+  if (!confirm(`نوع المركبة "${makeName}" غير موجود. هل تريد إضافته؟`)) return;
+  CAR_DATA[makeName] = [];
+  fillMakesDatalist();
+  const inserted = await insertAndReturnDB('car_makes', { make_name: makeName });
+  if (inserted) {
+    MAKE_NAME_TO_ID[makeName] = inserted.id;
   }
 }
 
 // إضافة موديل جديد (كامري، سيراتو...)
 async function checkNewModel(modelName) {
   if (!modelName) return;
-
-  // جلب النوع المكتوب حالياً في خانة "نوع المركبة"
   const currentMake = document.getElementById('f-vtype').value;
-  
-  if (!currentMake || !CAR_DATA[currentMake]) {
-    console.warn("لم يتم اختيار نوع مركبة صحيح بعد.");
-    return;
-  }
-
-  // إذا كان الموديل غير موجود في القائمة المحلية
-  if (!CAR_DATA[currentMake].includes(modelName)) {
-    if (confirm(`هل تريد إضافة الموديل "${modelName}" لسيارات "${currentMake}"؟`)) {
-      
-      const makeId = MAKE_NAME_TO_ID[currentMake];
-      
-      if (!makeId) {
-        alert("حدث خطأ: لم يتم العثور على رقم الماركة في النظام. جرب إعادة تحميل الصفحة.");
-        return;
-      }
-
-      // إرسال الطلب لجدول car_models
-      const inserted = await insertAndReturnDB('car_models', { 
-        make_id: makeId, 
-        model_name: modelName 
-      });
-
-      if (inserted) {
-        CAR_DATA[currentMake].push(modelName);
-        onMakeInput(currentMake); // re-render models sorted
-        alert("✅ تم إضافة الموديل الجديد بنجاح");
-      }
+  if (!currentMake) return;
+  if (!CAR_DATA[currentMake]) CAR_DATA[currentMake] = [];
+  S('vcls', modelName);
+  if (CAR_DATA[currentMake].includes(modelName)) return;
+  if (!confirm(`صنف المركبة "${modelName}" غير موجود تحت نوع "${currentMake}". هل تريد إضافته؟`)) return;
+  let makeId = MAKE_NAME_TO_ID[currentMake];
+  if (!makeId) {
+    const rows = await fetch(`${SUPABASE_URL_BASE}/car_makes?make_name=eq.${encodeURIComponent(currentMake)}&select=id`, { headers: HEADERS }).then(r => r.json());
+    if (rows && rows[0]) {
+      makeId = rows[0].id;
+      MAKE_NAME_TO_ID[currentMake] = makeId;
     }
+  }
+  if (!makeId) return;
+  const inserted = await insertAndReturnDB('car_models', { make_id: makeId, model_name: modelName });
+  if (inserted) {
+    CAR_DATA[currentMake].push(modelName);
+    onMakeInput(currentMake);
   }
 }
 async function checkNewPart(partName) {
@@ -870,7 +848,16 @@ function filterMake(q){
   document.getElementById('make-list').innerHTML=fm.slice(0,14).map((m,idx)=>`<div class="popt" onmousedown="event.preventDefault()" onclick="selMake(fm[${idx}])">${m}</div>`).join('');
   document.getElementById('make-list').classList.toggle('vis',qt.length>0&&fm.length>0);
 }
-function selMake(n){document.getElementById('f-vtype').value=n;onMakeInput(n);document.getElementById('make-list').classList.remove('vis');}
+function selMake(n){
+  document.getElementById('f-vtype').value=n;
+  S('vtype',n);
+  onMakeInput(n);
+  document.getElementById('make-list').classList.remove('vis');
+  const cls=document.getElementById('f-vcls');
+  cls.value='';
+  S('vcls','');
+  document.getElementById('model-list').classList.remove('vis');
+}
 
 let fml=[];
 function filterModel(q){
