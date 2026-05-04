@@ -12,6 +12,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 </head>
 <body>
+<script>if(localStorage.getItem('theme')==='light')document.documentElement.classList.add('light');</script>
 <div id="app">
 <!-- HEADER -->
 <div id="hdr">
@@ -19,7 +20,8 @@
     <h1>مؤسسة دحبور لتسوية الخسائر — محرر تقرير التسوية</h1>
     <p>نظام متزامن ثنائي الاتجاه | اللغة العربية</p>
   </div>
-  <div style="display:flex;gap:5px">
+  <div style="display:flex;gap:5px;align-items:center">
+    <button id="theme-btn" class="hb hb-o" onclick="toggleTheme()" title="تبديل المظهر">🌙</button>
     <button class="hb hb-o" onclick="window.print()">🖨 طباعة</button>
     <button class="hb hb-w" onclick="saveAsWord()">📄 Word</button>
     <button class="hb hb-p" onclick="saveAsPDF()">📕 PDF</button>
@@ -410,7 +412,7 @@
 
       <div class="brb" style="margin-top:5px">
         <div class="il"><span class="bl">مناطق الضرر :&nbsp;&nbsp;</span><span class="ef" contenteditable="true" id="d-darea" data-f="darea" data-p="نقاط ضرر الحادث الحالي" oninput="D('darea',this);chkConf()" style="min-width:160px;color:#000"></span></div>
-        <div class="il" id="d-ddesc-wrap" style="margin-top:3px;display:none"><span class="rl">الوصف الكتابي :&nbsp;</span><span class="ef" contenteditable="true" id="d-ddesc" data-f="ddesc" data-p="..." oninput="D('ddesc',this);toggleDdescWrap(this)" style="min-width:140px;color:#000"></span></div>
+        <div class="il" id="d-ddesc-wrap" style="margin-top:3px;display:none"><span class="rl">الوصف الكتابي :&nbsp;</span><span class="ef" contenteditable="true" id="d-ddesc" data-f="ddesc" data-p="..." oninput="D('ddesc',this);toggleDdescWrap(this)" style="min-width:140px;color:#cc0000"></span></div>
         <div class="il" style="margin-top:5px;font-size:14px" id="d-resp-line">حدود المسؤولية : <span style="color:#cc0000;font-weight:700">100%</span> من مسؤولية على المركبة المؤمنة لدينا .</div>
       </div>
 

@@ -142,6 +142,26 @@ hr.sd{border:none;border-top:1.5px solid #888;margin:8px 0}
 .mf input:focus,.mf select:focus{outline:none;border-color:var(--grn3)}
 .ma{display:flex;gap:6px;justify-content:flex-end;margin-top:12px}
 
+/* ── LIGHT THEME ── */
+html.light{
+  --bg:#eaecf0;--panel:#ffffff;--sec:#f3f4f6;--brd:#c8d0da;
+  --grn:#2d6a4f;--grn2:#40916c;--grn3:#2a7a4f;
+  --txt:#1a1f27;--dim:#505a68;--hov:#e2e6eb;--inp:#f6f8fa;
+}
+html.light #hdr{background:linear-gradient(135deg,#ffffff,#f3f4f6);border-bottom-color:#c8d0da}
+html.light #doc{background:#d4d8de}
+html.light #ruler,html.light #tb{background:#f3f4f6}
+html.light .rm.maj{background:#9aa3ae}
+html.light .rm.med{background:#c8d0da}
+html.light .fg input::placeholder,html.light .fg textarea::placeholder{color:#a8b2bc}
+html.light .fg select option{background:#ffffff}
+html.light .tbsel option{background:#f3f4f6}
+html.light .bdel{background:#fef0f0;color:#cc0000}
+html.light .bdel:hover{background:#fde0e0}
+html.light #conflict-alert{background:#fef0f0;border-color:#e0a0a0;color:#cc0000}
+html.light ::-webkit-scrollbar-track{background:var(--bg)}
+html.light ::-webkit-scrollbar-thumb{background:var(--brd)}
+
 @media print{
   @page{size:A4;margin:0}
   html,body{overflow:visible!important;height:auto!important}

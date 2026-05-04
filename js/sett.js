@@ -35,7 +35,8 @@ Promise.all([
   // أ) تجهيز الماركات
   makesData.forEach(make => {
     makeMap[make.id] = make.make_name;
-    CAR_DATA[make.make_name] = []; // مصفوفة فارغة لكل ماركة
+    CAR_DATA[make.make_name] = [];
+    MAKE_NAME_TO_ID[make.make_name] = make.id;
   });
 
   // ب) توزيع الأصناف داخل ماركاتها بناءً على make_id
@@ -79,13 +80,6 @@ Promise.all([
   }
 
   console.log("✅ تم تحميل جميع البيانات من Supabase بنجاح ورطها بالتطبيق!");
-
-  // أ) تجهيز الماركات وحفظ الـ IDs
-makesData.forEach(make => {
-  MAKE_NAME_TO_ID[make.make_name] = make.id; // حفظ الـ ID
-  makeMap[make.id] = make.make_name;
-  CAR_DATA[make.make_name] = [];
-});
 })
 .catch(error => console.error('❌ حدث خطأ أثناء جلب البيانات من Supabase:', error));
 
@@ -169,53 +163,37 @@ async function insertAndReturnDB(tableName, record) {
 // إضافة ماركة جديدة (تويوتا، كيا...)
 async function checkNewMake(makeName) {
   if (!makeName || CAR_DATA[makeName]) return;
-
-  if (confirm(`نوع المركبة "${makeName}" جديد، هل تريد إضافته للنظام؟`)) {
-    const inserted = await insertAndReturnDB('car_makes', { make_name: makeName });
-    if (inserted) {
-      CAR_DATA[makeName] = [];
-      MAKE_NAME_TO_ID[makeName] = inserted.id;
-      fillMakesDatalist(); // re-render sorted
-      alert("✅ تم إضافة النوع بنجاح");
-    }
+  if (!confirm(`نوع المركبة "${makeName}" غير موجود. هل تريد إضافته؟`)) return;
+  CAR_DATA[makeName] = [];
+  fillMakesDatalist();
+  const inserted = await insertAndReturnDB('car_makes', { make_name: makeName });
+  if (inserted) {
+    MAKE_NAME_TO_ID[makeName] = inserted.id;
   }
 }
 
 // إضافة موديل جديد (كامري، سيراتو...)
 async function checkNewModel(modelName) {
   if (!modelName) return;
-
-  // جلب النوع المكتوب حالياً في خانة "نوع المركبة"
   const currentMake = document.getElementById('f-vtype').value;
-  
-  if (!currentMake || !CAR_DATA[currentMake]) {
-    console.warn("لم يتم اختيار نوع مركبة صحيح بعد.");
-    return;
-  }
-
-  // إذا كان الموديل غير موجود في القائمة المحلية
-  if (!CAR_DATA[currentMake].includes(modelName)) {
-    if (confirm(`هل تريد إضافة الموديل "${modelName}" لسيارات "${currentMake}"؟`)) {
-      
-      const makeId = MAKE_NAME_TO_ID[currentMake];
-      
-      if (!makeId) {
-        alert("حدث خطأ: لم يتم العثور على رقم الماركة في النظام. جرب إعادة تحميل الصفحة.");
-        return;
-      }
-
-      // إرسال الطلب لجدول car_models
-      const inserted = await insertAndReturnDB('car_models', { 
-        make_id: makeId, 
-        model_name: modelName 
-      });
-
-      if (inserted) {
-        CAR_DATA[currentMake].push(modelName);
-        onMakeInput(currentMake); // re-render models sorted
-        alert("✅ تم إضافة الموديل الجديد بنجاح");
-      }
+  if (!currentMake) return;
+  if (!CAR_DATA[currentMake]) CAR_DATA[currentMake] = [];
+  S('vcls', modelName);
+  if (CAR_DATA[currentMake].includes(modelName)) return;
+  if (!confirm(`صنف المركبة "${modelName}" غير موجود تحت نوع "${currentMake}". هل تريد إضافته؟`)) return;
+  let makeId = MAKE_NAME_TO_ID[currentMake];
+  if (!makeId) {
+    const rows = await fetch(`${SUPABASE_URL_BASE}/car_makes?make_name=eq.${encodeURIComponent(currentMake)}&select=id`, { headers: HEADERS }).then(r => r.json());
+    if (rows && rows[0]) {
+      makeId = rows[0].id;
+      MAKE_NAME_TO_ID[currentMake] = makeId;
     }
+  }
+  if (!makeId) return;
+  const inserted = await insertAndReturnDB('car_models', { make_id: makeId, model_name: modelName });
+  if (inserted) {
+    CAR_DATA[currentMake].push(modelName);
+    onMakeInput(currentMake);
   }
 }
 async function checkNewPart(partName) {
@@ -647,7 +625,7 @@ function clearDmgSelect(){
 function updateRespDisplay(val){
   const n=parseInt(val)||100;
   const line=document.getElementById('d-resp-line');
-  const pctSpan=`<span style="color:red;font-weight:700">${n}%</span>`;
+  const pctSpan=`<span style="color:#cc0000;font-weight:700">${n}%</span>`;
   if(n>=100){
     line.innerHTML=`حدود المسؤولية : ${pctSpan} من مسؤولية على المركبة المؤمنة لدينا .`;
   } else {
@@ -870,7 +848,16 @@ function filterMake(q){
   document.getElementById('make-list').innerHTML=fm.slice(0,14).map((m,idx)=>`<div class="popt" onmousedown="event.preventDefault()" onclick="selMake(fm[${idx}])">${m}</div>`).join('');
   document.getElementById('make-list').classList.toggle('vis',qt.length>0&&fm.length>0);
 }
-function selMake(n){document.getElementById('f-vtype').value=n;onMakeInput(n);document.getElementById('make-list').classList.remove('vis');}
+function selMake(n){
+  document.getElementById('f-vtype').value=n;
+  S('vtype',n);
+  onMakeInput(n);
+  document.getElementById('make-list').classList.remove('vis');
+  const cls=document.getElementById('f-vcls');
+  cls.value='';
+  S('vcls','');
+  document.getElementById('model-list').classList.remove('vis');
+}
 
 let fml=[];
 function filterModel(q){
@@ -1203,7 +1190,7 @@ function updateDeprDoc(val, reason){
     const txt=DEPR_REASONS[reason];
     const pIdx=txt.indexOf('(');
     rtxt.innerHTML=pIdx>-1
-      ?escH(txt.slice(0,pIdx))+'<span style="color:red">'+escH(txt.slice(pIdx))+'</span>'
+      ?escH(txt.slice(0,pIdx))+'<span style="color:#cc0000">'+escH(txt.slice(pIdx))+'</span>'
       :escH(txt);
   } else if(val){
     line.style.display='';
@@ -1313,7 +1300,7 @@ function chkConf(){
     // Rebuild innerHTML so only the exact overlapping numbers turn red
     el.innerHTML=areas.map(a=>{
       const hit=cur.some(c=>c.trim()===a.trim());
-      return hit?`<span style="color:red;font-weight:900">${a}</span>`:a;
+      return hit?`<span style="color:#cc0000;font-weight:900">${a}</span>`:a;
     }).join('+');
   });
 }
@@ -1602,6 +1589,14 @@ async function saveAsWord() {
     }
 
     const zip = new PizZip(buffer);
+
+    // Patch template XML: add missing {#repairs} opener that Word omitted
+    const _docXmlFile = zip.file('word/document.xml');
+    if (_docXmlFile) {
+      const _docXml = _docXmlFile.asText().replace('{name}{/repairs}', '{#repairs}{name}{/repairs}');
+      zip.file('word/document.xml', _docXml);
+    }
+
     const doc = new Dx(zip, {
       paragraphLoop: true,
       linebreaks: true,
@@ -1776,7 +1771,6 @@ async function saveAsWord() {
       has_priors:     priorsData.length > 0,
       has_afters:     aftersData.length > 0,
       parts_total:    partsData.reduce((a, p) => a + (p.total || 0), 0),
-      claims_total:   claimsData.reduce((a, c) => a + (parseFloat(c.price) || 0), 0),
     };
 
     // 7. Render the template with the data
@@ -1923,3 +1917,13 @@ checkOverflow();
 })();
 
 function setYearFromSelect(val){ S('vmod',val); }
+
+function toggleTheme(){
+  const isLight=document.documentElement.classList.toggle('light');
+  localStorage.setItem('theme',isLight?'light':'dark');
+  document.getElementById('theme-btn').textContent=isLight?'☀️':'🌙';
+}
+(function(){
+  if(localStorage.getItem('theme')==='light')
+    document.getElementById('theme-btn').textContent='☀️';
+})();
