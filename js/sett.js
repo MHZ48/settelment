@@ -1652,6 +1652,56 @@ async function saveAsWord() {
       name:  (r.name || '').toString(),
     }));
 
+    // 5a. Build the المطالبة table data → {#claims}…{/claims}.
+    //     Mirrors updCTbl(): claim price = manual override (claimPrices[i]) if set,
+    //     otherwise auto-calculated via calcClaimPrice(). Half-parts contribute 0
+    //     for the parent base; only their non-half subs count.
+    const claimsData = (typeof parts !== 'undefined' ? parts : []).map((p, i) => {
+      const baseName = (p.name || '') + (p.half ? half50 : '');
+      // Build the displayed full name including subs (matches getFullName)
+      const subsArr  = Array.isArray(p.subs) ? p.subs : (p.sub ? [{ name: p.sub, price: '' }] : []);
+      const subNames = subsArr.map(s => {
+        const sObj  = (typeof s === 'object' && s) ? s : { name: s, price: '' };
+        const sName = (sObj.name || '').toString().trim();
+        return sName + (sObj.half ? half50 : '');
+      }).filter(Boolean);
+      const fullName = [baseName, ...subNames].filter(Boolean).join(' / ');
+
+      // Compute the claim price (auto unless manually overridden)
+      let priceVal = 0;
+      if (typeof claimPrices !== 'undefined' && claimPrices[i] !== null && claimPrices[i] !== undefined) {
+        priceVal = parseFloat(claimPrices[i]) || 0;
+      } else {
+        const claimBase = (p.half ? 0 : (parseFloat(p.price) || 0))
+          + subsArr.reduce((a, s) => {
+              const sObj = (typeof s === 'object' && s) ? s : { name: s, price: '' };
+              if (sObj.half) return a;
+              return a + (parseFloat(sObj.price) || 0);
+            }, 0);
+        if (typeof calcClaimPrice === 'function') priceVal = calcClaimPrice(claimBase) || 0;
+        else priceVal = Math.round(claimBase * 0.1);  // fallback: 10%
+      }
+      const niceVal = priceVal % 1 === 0 ? priceVal.toFixed(0) : priceVal.toFixed(1);
+      return { index: i + 1, name: fullName, price: niceVal };
+    });
+
+    // 5b. Prior / after incidents → {#priors}…{/priors} and {#afters}…{/afters}.
+    function fmtIncidentDate(d) { return (d || '').toString().replace(/-/g, '/'); }
+    function fmtDamage(dmg) {
+      if (Array.isArray(dmg)) return dmg.join('+');
+      return (dmg || '').toString();
+    }
+    const priorsData = (typeof priors !== 'undefined' ? priors : []).map((p, i) => ({
+      index:  i + 1,
+      date:   fmtIncidentDate(p.date),
+      damage: fmtDamage(p.damage),
+    }));
+    const aftersData = (typeof afters !== 'undefined' ? afters : []).map((p, i) => ({
+      index:  i + 1,
+      date:   fmtIncidentDate(p.date),
+      damage: fmtDamage(p.damage),
+    }));
+
     // 5b. Apply business rules for description and liability.
     //  • description: if empty, the whole section is hidden (use {#has_description}…{/has_description})
     //  • liability:
@@ -1718,9 +1768,15 @@ async function saveAsWord() {
       net_final:      t('d-net2'),   // الصافي بعد الاستهلاك
       report_total:   t('d-rp'),     // قيمة التقرير النهائية
       // ── Loops ──
-      parts:          partsData,
-      repairs:        repairsData,
+      parts:          partsData,      // {#parts}…{/parts}    — جدول القطع
+      repairs:        repairsData,    // {#repairs}…{/repairs} — جدول الإصلاحات
+      claims:         claimsData,     // {#claims}…{/claims}   — جدول المطالبة
+      priors:         priorsData,     // {#priors}…{/priors}   — الحوادث السابقة
+      afters:         aftersData,     // {#afters}…{/afters}   — الحوادث اللاحقة
+      has_priors:     priorsData.length > 0,
+      has_afters:     aftersData.length > 0,
       parts_total:    partsData.reduce((a, p) => a + (p.total || 0), 0),
+      claims_total:   claimsData.reduce((a, c) => a + (parseFloat(c.price) || 0), 0),
     };
 
     // 7. Render the template with the data
