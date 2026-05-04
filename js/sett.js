@@ -647,7 +647,7 @@ function clearDmgSelect(){
 function updateRespDisplay(val){
   const n=parseInt(val)||100;
   const line=document.getElementById('d-resp-line');
-  const pctSpan=`<span style="color:red;font-weight:700">${n}%</span>`;
+  const pctSpan=`<span style="color:#cc0000;font-weight:700">${n}%</span>`;
   if(n>=100){
     line.innerHTML=`حدود المسؤولية : ${pctSpan} من مسؤولية على المركبة المؤمنة لدينا .`;
   } else {
@@ -1203,7 +1203,7 @@ function updateDeprDoc(val, reason){
     const txt=DEPR_REASONS[reason];
     const pIdx=txt.indexOf('(');
     rtxt.innerHTML=pIdx>-1
-      ?escH(txt.slice(0,pIdx))+'<span style="color:red">'+escH(txt.slice(pIdx))+'</span>'
+      ?escH(txt.slice(0,pIdx))+'<span style="color:#cc0000">'+escH(txt.slice(pIdx))+'</span>'
       :escH(txt);
   } else if(val){
     line.style.display='';
@@ -1313,7 +1313,7 @@ function chkConf(){
     // Rebuild innerHTML so only the exact overlapping numbers turn red
     el.innerHTML=areas.map(a=>{
       const hit=cur.some(c=>c.trim()===a.trim());
-      return hit?`<span style="color:red;font-weight:900">${a}</span>`:a;
+      return hit?`<span style="color:#cc0000;font-weight:900">${a}</span>`:a;
     }).join('+');
   });
 }
@@ -1576,6 +1576,14 @@ async function saveAsWord() {
     }
 
     const zip = new PizZip(buffer);
+
+    // Patch template XML: add missing {#repairs} opener that Word omitted
+    const _docXmlFile = zip.file('word/document.xml');
+    if (_docXmlFile) {
+      const _docXml = _docXmlFile.asText().replace('{name}{/repairs}', '{#repairs}{name}{/repairs}');
+      zip.file('word/document.xml', _docXml);
+    }
+
     const doc = new Dx(zip, {
       paragraphLoop: true,
       linebreaks: true,
@@ -1695,6 +1703,31 @@ async function saveAsWord() {
       parts:          partsData,
       repairs:        repairsData,
       parts_total:    partsData.reduce((a, p) => a + (p.total || 0), 0),
+      claims:         (()=>{
+        const _cp = typeof claimPrices !== 'undefined' ? claimPrices : [];
+        const _cb = p => {
+          const base = p.half ? 0 : (parseFloat(p.price) || 0);
+          const st = (p.subs||[]).reduce((a,s)=>s.half?a:a+(parseFloat(typeof s==='object'?s.price:0)||0), 0);
+          return base + st;
+        };
+        return (typeof parts !== 'undefined' ? parts : []).map((p, i) => {
+          const auto = calcClaimPrice(_cb(p));
+          const val  = (_cp[i] !== null && _cp[i] !== undefined) ? parseFloat(_cp[i]) || 0 : auto;
+          return { index: i + 1, name: (p.name||'') + (p.half ? half50 : ''), price: val };
+        });
+      })(),
+      claims_total:   (()=>{
+        const _cp = typeof claimPrices !== 'undefined' ? claimPrices : [];
+        const _cb = p => {
+          const base = p.half ? 0 : (parseFloat(p.price) || 0);
+          const st = (p.subs||[]).reduce((a,s)=>s.half?a:a+(parseFloat(typeof s==='object'?s.price:0)||0), 0);
+          return base + st;
+        };
+        return (typeof parts !== 'undefined' ? parts : []).reduce((a, p, i) => {
+          const auto = calcClaimPrice(_cb(p));
+          return a + ((_cp[i] !== null && _cp[i] !== undefined) ? parseFloat(_cp[i]) || 0 : auto);
+        }, 0);
+      })(),
     };
 
     // 7. Render the template with the data
@@ -1837,3 +1870,13 @@ checkOverflow();
 })();
 
 function setYearFromSelect(val){ S('vmod',val); }
+
+function toggleTheme(){
+  const isLight=document.documentElement.classList.toggle('light');
+  localStorage.setItem('theme',isLight?'light':'dark');
+  document.getElementById('theme-btn').textContent=isLight?'☀️':'🌙';
+}
+(function(){
+  if(localStorage.getItem('theme')==='light')
+    document.getElementById('theme-btn').textContent='☀️';
+})();
