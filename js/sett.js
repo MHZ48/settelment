@@ -1521,6 +1521,7 @@ img.full{width:100%;display:block}
   a.download=name+'.html';
   document.body.appendChild(a);
   a.click();
+  maybeStoreGeneratedHtml(name, html);
   setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(a.href)},500);
 }
 
@@ -1783,6 +1784,7 @@ async function saveAsWord() {
     });
     const fname = _exportFileName('f-anum-num', 'f-anum-yr', 'تقرير-التسوية');
     saveAs(blob, fname + '.docx');
+    maybeStoreGeneratedHtml(fname + '-snapshot', document.getElementById('dcon')?.innerHTML || '');
 
   } catch (err) {
     console.error('saveAsWord error:', err);
@@ -1840,6 +1842,7 @@ function saveAsPDF() {
   // in the print-to-PDF dialog (Chrome / Edge / Firefox all honour it)
   const prev = document.title;
   document.title = fname;
+  maybeStoreGeneratedHtml(fname + '-snapshot', document.getElementById('dcon')?.innerHTML || '');
   window.print();
   setTimeout(() => { document.title = prev; }, 1500);
 }
@@ -1927,3 +1930,341 @@ function toggleTheme(){
   if(localStorage.getItem('theme')==='light')
     document.getElementById('theme-btn').textContent='☀️';
 })();
+
+const SESSION_STORE_KEY = 'SETT_WORKSPACE_SESSIONS';
+const SESSION_ACTIVE_KEY = 'SETT_WORKSPACE_LAST_CASE';
+let sessionAutoSaveTimer = null;
+let currentCaseNumber = '';
+
+function getCaseNumber(){
+  const num = (document.getElementById('f-cnum-num')?.value || '').trim();
+  const yr = (document.getElementById('f-cnum-yr')?.value || '').trim();
+  return (num && yr) ? `${yr}/${num}` : '';
+}
+
+function getStoredSessions(){
+  try { return JSON.parse(localStorage.getItem(SESSION_STORE_KEY) || '{}') || {}; }
+  catch (e) { return {}; }
+}
+
+function setStoredSessions(sessions){
+  localStorage.setItem(SESSION_STORE_KEY, JSON.stringify(sessions));
+}
+
+function getLastCaseNumber(){
+  return localStorage.getItem(SESSION_ACTIVE_KEY) || '';
+}
+
+function setLastCaseNumber(caseNum){
+  if (caseNum) localStorage.setItem(SESSION_ACTIVE_KEY, caseNum);
+  else localStorage.removeItem(SESSION_ACTIVE_KEY);
+}
+
+function getSessionByCase(caseNum){
+  if (!caseNum) return null;
+  const sessions = getStoredSessions();
+  return sessions[caseNum] || null;
+}
+
+function getActiveSession(){
+  return getSessionByCase(currentCaseNumber || getLastCaseNumber());
+}
+
+function createSessionObject(caseNum, title){
+  return {
+    caseNumber: caseNum,
+    title: title || `قضية ${caseNum}`,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    state: getAppState(),
+    files: []
+  };
+}
+
+function createOrSwitchSession(caseNum){
+  if (!caseNum || caseNum === currentCaseNumber) return;
+  
+  const sessions = getStoredSessions();
+  const existing = sessions[caseNum];
+  
+  if (existing && existing.state) {
+    applyAppState(existing.state);
+  } else if (!existing) {
+    sessions[caseNum] = createSessionObject(caseNum, `قضية ${caseNum}`);
+    setStoredSessions(sessions);
+  }
+  
+  currentCaseNumber = caseNum;
+  setLastCaseNumber(caseNum);
+  renderSessionList();
+  scheduleSessionSave();
+}
+
+function saveActiveSession(){
+  const caseNum = currentCaseNumber || getLastCaseNumber();
+  if (!caseNum) {
+    alert('الرجاء إدخال رقم القضية أولاً.');
+    return;
+  }
+  const sessions = getStoredSessions();
+  sessions[caseNum] = sessions[caseNum] || createSessionObject(caseNum);
+  sessions[caseNum].state = getAppState();
+  sessions[caseNum].updatedAt = new Date().toISOString();
+  setStoredSessions(sessions);
+  renderSessionList();
+  alert(`تم حفظ الجلسة: ${caseNum}`);
+}
+
+function scheduleSessionSave(){
+  clearTimeout(sessionAutoSaveTimer);
+  sessionAutoSaveTimer = setTimeout(() => {
+    const caseNum = currentCaseNumber || getLastCaseNumber();
+    if (!caseNum) return;
+    const sessions = getStoredSessions();
+    sessions[caseNum] = sessions[caseNum] || createSessionObject(caseNum);
+    sessions[caseNum].state = getAppState();
+    sessions[caseNum].updatedAt = new Date().toISOString();
+    setStoredSessions(sessions);
+  }, 600);
+}
+
+function loadLastSession(){
+  const lastCase = getLastCaseNumber();
+  if (lastCase) {
+    const sessions = getStoredSessions();
+    if (sessions[lastCase] && sessions[lastCase].state) {
+      currentCaseNumber = lastCase;
+      applyAppState(sessions[lastCase].state);
+      return;
+    }
+  }
+  currentCaseNumber = '';
+}
+
+function openSessionManager(){
+  renderSessionList();
+  document.getElementById('session-overlay')?.classList.add('open');
+}
+
+function closeSessionManager(){
+  document.getElementById('session-overlay')?.classList.remove('open');
+}
+
+function switchSession(caseNum){
+  if (!caseNum) return;
+  createOrSwitchSession(caseNum);
+  closeSessionManager();
+}
+
+function deleteSession(caseNum){
+  if (!confirm(`هل تريد حذف جلسة القضية ${caseNum}؟`)) return;
+  const sessions = getStoredSessions();
+  delete sessions[caseNum];
+  setStoredSessions(sessions);
+  if (currentCaseNumber === caseNum) {
+    currentCaseNumber = '';
+  }
+  renderSessionList();
+}
+
+function formatSessionDate(iso){
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleString('ar-EG', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+
+function renderSessionList(){
+  const list = document.getElementById('session-list');
+  if (!list) return;
+  const sessions = getStoredSessions();
+  const cases = Object.keys(sessions).sort().reverse();
+  list.innerHTML = '';
+
+  if (!cases.length) {
+    const empty = document.createElement('div');
+    empty.style.color = 'var(--dim)';
+    empty.style.fontSize = '12px';
+    empty.textContent = 'لا توجد قضايا محفوظة بعد.';
+    list.appendChild(empty);
+    return;
+  }
+
+  cases.forEach(caseNum => {
+    const session = sessions[caseNum];
+    const item = document.createElement('div');
+    item.className = 'session-item';
+
+    const info = document.createElement('div');
+    info.innerHTML = `<strong>${session.title}</strong><br><small>آخر تحديث: ${formatSessionDate(session.updatedAt)} · ${session.files?.length || 0} ملف محفوظ</small>`;
+
+    const controls = document.createElement('div');
+    controls.style.display = 'flex';
+    controls.style.alignItems = 'center';
+    controls.style.gap = '5px';
+
+    const openBtn = document.createElement('button');
+    openBtn.className = 'hb hb-o';
+    openBtn.textContent = currentCaseNumber === caseNum ? 'نشطة' : 'فتح';
+    openBtn.disabled = currentCaseNumber === caseNum;
+    openBtn.addEventListener('click', () => switchSession(caseNum));
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'hb hb-p';
+    deleteBtn.textContent = 'حذف';
+    deleteBtn.addEventListener('click', () => deleteSession(caseNum));
+
+    controls.appendChild(openBtn);
+    controls.appendChild(deleteBtn);
+    item.appendChild(info);
+    item.appendChild(controls);
+
+    if (session.files && session.files.length) {
+      const fileList = document.createElement('div');
+      fileList.style.marginTop = '10px';
+      session.files.forEach(file => {
+        const row = document.createElement('div');
+        row.className = 'session-file';
+
+        const label = document.createElement('div');
+        label.innerHTML = `<strong>${file.name}</strong><br><small>${file.type.toUpperCase()} · ${formatSessionDate(file.updatedAt)}</small>`;
+
+        const download = document.createElement('button');
+        download.textContent = 'تنزيل';
+        download.addEventListener('click', () => downloadSessionFile(file));
+
+        row.appendChild(label);
+        row.appendChild(download);
+        fileList.appendChild(row);
+      });
+      item.appendChild(fileList);
+    }
+
+    list.appendChild(item);
+  });
+}
+
+function downloadSessionFile(file){
+  try {
+    const mime = file.type === 'html' ? 'text/html' : 'application/octet-stream';
+    const blob = new Blob([file.content], { type: mime });
+    saveAs(blob, file.name);
+  } catch (err) {
+    console.error('downloadSessionFile error:', err);
+    alert('حدث خطأ أثناء تنزيل الملف. راجع الكونسول.');
+  }
+}
+
+function saveSessionFile(name, type, content){
+  const caseNum = currentCaseNumber || getLastCaseNumber();
+  if (!caseNum) return;
+  const sessions = getStoredSessions();
+  if (!sessions[caseNum]) sessions[caseNum] = createSessionObject(caseNum);
+  const session = sessions[caseNum];
+  session.files = session.files || [];
+  const existing = session.files.find(f => f.name === name && f.type === type);
+  const now = new Date().toISOString();
+  if (existing) {
+    existing.content = content;
+    existing.updatedAt = now;
+  } else {
+    session.files.unshift({ id: 'file-' + Date.now(), name, type, content, createdAt: now, updatedAt: now });
+  }
+  session.updatedAt = now;
+  setStoredSessions(sessions);
+  renderSessionList();
+}
+
+
+function getAppState(){
+  const state = { fields: {}, dcon: '', parts: [], repairs: [], priors: [], afters: [], claimPrices: [], leftInd, rightInd };
+  document.querySelectorAll('#form input, #form textarea, #form select').forEach(el => {
+    if (!el.id) return;
+    if (el.type === 'checkbox' || el.type === 'radio') state.fields[el.id] = el.checked;
+    else state.fields[el.id] = el.value;
+  });
+  state.dcon = document.getElementById('dcon')?.innerHTML || '';
+  state.parts = JSON.parse(JSON.stringify(parts));
+  state.repairs = JSON.parse(JSON.stringify(repairs));
+  state.priors = JSON.parse(JSON.stringify(priors));
+  state.afters = JSON.parse(JSON.stringify(afters));
+  state.claimPrices = JSON.parse(JSON.stringify(claimPrices));
+  return state;
+}
+
+function applyAppState(state){
+  if (!state) return;
+  if (state.fields) {
+    Object.entries(state.fields).forEach(([id, value]) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (el.type === 'checkbox' || el.type === 'radio') el.checked = !!value;
+      else el.value = value;
+      if (id.startsWith('f-') && typeof S === 'function') {
+        S(id.slice(2), value);
+      }
+    });
+  }
+  const dcon = document.getElementById('dcon');
+  if (dcon && typeof state.dcon === 'string') dcon.innerHTML = state.dcon;
+  parts = state.parts || [];
+  repairs = state.repairs || [{name:'تركيب القطع'},{name:'دهان مكان الحادث'}];
+  priors = state.priors || [];
+  afters = state.afters || [];
+  claimPrices = state.claimPrices || [];
+  if (typeof state.leftInd === 'number') leftInd = state.leftInd;
+  if (typeof state.rightInd === 'number') rightInd = state.rightInd;
+  renderRepairs();
+  updRepairTbl();
+  renderDocPriors();
+  renderDocAfters();
+  if (typeof updateAnum === 'function') updateAnum();
+  if (typeof updateCnum === 'function') updateCnum();
+  if (typeof applyIdate === 'function') applyIdate(document.getElementById('f-idate')?.value || '');
+  if (typeof updateRespDisplay === 'function') updateRespDisplay(document.getElementById('f-resp')?.value || '');
+  if (typeof calc === 'function') calc();
+  if (typeof calcBrk === 'function') calcBrk();
+  checkOverflow();
+}
+
+function bindSessionAutosave(){
+  document.querySelectorAll('#form input, #form textarea, #form select').forEach(el => {
+    el.addEventListener('input', scheduleSessionSave);
+    el.addEventListener('change', scheduleSessionSave);
+  });
+  document.getElementById('dcon')?.addEventListener('input', scheduleSessionSave);
+  
+  document.getElementById('f-cnum-num')?.addEventListener('change', () => {
+    const newCase = getCaseNumber();
+    if (newCase && newCase !== currentCaseNumber) {
+      createOrSwitchSession(newCase);
+    }
+  });
+  
+  document.getElementById('f-cnum-yr')?.addEventListener('change', () => {
+    const newCase = getCaseNumber();
+    if (newCase && newCase !== currentCaseNumber) {
+      createOrSwitchSession(newCase);
+    }
+  });
+}
+
+window.addEventListener('beforeunload', () => {
+  const caseNum = currentCaseNumber || getLastCaseNumber();
+  if (!caseNum) return;
+  const sessions = getStoredSessions();
+  sessions[caseNum] = sessions[caseNum] || createSessionObject(caseNum);
+  sessions[caseNum].state = getAppState();
+  sessions[caseNum].updatedAt = new Date().toISOString();
+  setStoredSessions(sessions);
+});
+
+
+function maybeStoreGeneratedHtml(name, html){
+  if (!name || !html) return;
+  const fileName = `${name.replace(/[\\/:*?"<>|]/g,'_')}.html`;
+  saveSessionFile(fileName, 'html', html);
+}
+
+loadLastSession();
+bindSessionAutosave();
+

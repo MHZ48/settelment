@@ -22,6 +22,7 @@
   </div>
   <div style="display:flex;gap:5px;align-items:center">
     <button id="theme-btn" class="hb hb-o" onclick="toggleTheme()" title="تبديل المظهر">🌙</button>
+    <button class="hb hb-o" onclick="openSessionManager()" title="إدارة الجلسات">📁 جلسات</button>
     <button class="hb hb-o" onclick="window.print()">🖨 طباعة</button>
     <button class="hb hb-w" onclick="saveAsWord()">📄 Word</button>
     <button class="hb hb-p" onclick="saveAsPDF()">📕 PDF</button>
@@ -508,6 +509,16 @@
   </div>
 </div>
 
+<div id="session-overlay">
+  <div class="mb">
+    <h3>🗂️ جلسات العمل</h3>
+    <div id="session-list"></div>
+    <div class="session-actions">
+      <button class="hb hb-o" onclick="document.getElementById('session-overlay').classList.remove('open')">إغلاق</button>
+      <button class="hb hb-g" onclick="saveActiveSession()">💾 حفظ الجلسة الحالية</button>
+    </div>
+  </div>
+</div>
 
 <!-- DAMAGE POINTS MODAL -->
 <div id="dmg-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center" onclick="closeDmgModal(event)">
