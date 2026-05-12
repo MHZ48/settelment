@@ -510,13 +510,19 @@
 </div>
 
 <div id="session-overlay">
-  <div class="mb">
-    <h3>🗂️ جلسات العمل</h3>
-    <div id="session-list"></div>
-    <div class="session-actions">
-      <button class="hb hb-o" onclick="document.getElementById('session-overlay').classList.remove('open')">إغلاق</button>
-      <button class="hb hb-g" onclick="saveActiveSession()">💾 حفظ الجلسة الحالية</button>
+  <div class="mb session-page">
+    <div class="session-header">
+      <div>
+        <h3>🗂️ جلسات العمل</h3>
+        <p class="session-subtitle">اختر جلسة محفوظة أو ابدأ جلسة جديدة لتعود مباشرة إلى العمل.</p>
+      </div>
+      <div class="session-actions">
+        <button class="hb hb-o" onclick="closeSessionManager()">إغلاق</button>
+        <button class="hb hb-g" onclick="saveActiveSession()">💾 حفظ الجلسة الحالية</button>
+      </div>
     </div>
+    <input id="session-search" class="session-search" type="text" placeholder="ابحث برقم القضية أو العنوان..." autocomplete="off">
+    <div id="session-list"></div>
   </div>
 </div>
 

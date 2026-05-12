@@ -1904,6 +1904,17 @@ wrapTaqabulSection();
 checkOverflow();
 
 (function(){
+  document.querySelectorAll('.fs').forEach(fs=>{
+    const header = fs.querySelector('.st');
+    const body = fs.querySelector('.sb');
+    if(header && body){
+      header.classList.add('col');
+      body.classList.add('hid');
+    }
+  });
+})();
+
+(function(){
   const today=new Date().toISOString().split('T')[0];
   const rd=document.getElementById('f-rdate');
   if(rd&&!rd.value){rd.value=today;S('rdate',today);}
@@ -2056,6 +2067,57 @@ function switchSession(caseNum){
   closeSessionManager();
 }
 
+function startNewSession(){
+  currentCaseNumber = '';
+  setLastCaseNumber('');
+  clearAppState();
+  closeSessionManager();
+}
+
+function clearAppState(){
+  if (typeof DEFAULT_APP_STATE !== 'undefined' && DEFAULT_APP_STATE) {
+    applyAppState(DEFAULT_APP_STATE);
+  } else {
+    document.querySelectorAll('#form input, #form textarea, #form select').forEach(el => {
+      if (!el.id) return;
+      if (el.type === 'checkbox' || el.type === 'radio') el.checked = false;
+      else el.value = '';
+      if (el.id.startsWith('f-') && typeof S === 'function') S(el.id.slice(2), el.value);
+    });
+
+    const today = new Date().toISOString().split('T')[0];
+    const rd = document.getElementById('f-rdate');
+    if (rd) {
+      rd.value = today;
+      if (typeof applyRdate === 'function') applyRdate(today);
+      if (typeof S === 'function') S('rdate', today);
+    }
+
+    const dcon = document.getElementById('dcon');
+    if (dcon) dcon.innerHTML = '';
+
+    parts = [];
+    repairs = [{name:'تركيب القطع'},{name:'دهان مكان الحادث'}];
+    priors = [];
+    afters = [];
+    claimPrices = [];
+    leftInd = 36;
+    rightInd = 36;
+
+    renderRepairs();
+    updRepairTbl();
+    renderDocPriors();
+    renderDocAfters();
+    if (typeof updateAnum === 'function') updateAnum();
+    if (typeof updateCnum === 'function') updateCnum();
+    if (typeof applyIdate === 'function') applyIdate(document.getElementById('f-idate')?.value || '');
+    if (typeof updateRespDisplay === 'function') updateRespDisplay(document.getElementById('f-resp')?.value || '');
+    if (typeof calc === 'function') calc();
+    if (typeof calcBrk === 'function') calcBrk();
+    checkOverflow();
+  }
+}
+
 function deleteSession(caseNum){
   if (!confirm(`هل تريد حذف جلسة القضية ${caseNum}؟`)) return;
   const sessions = getStoredSessions();
@@ -2073,18 +2135,55 @@ function formatSessionDate(iso){
   return d.toLocaleString('ar-EG', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
 }
 
+function getSessionSearchQuery(){
+  return document.getElementById('session-search')?.value.trim().toLowerCase() || '';
+}
+
+function bindSessionSearchInput(){
+  const input = document.getElementById('session-search');
+  if (!input) return;
+  input.addEventListener('input', renderSessionList);
+}
+
 function renderSessionList(){
   const list = document.getElementById('session-list');
   if (!list) return;
   const sessions = getStoredSessions();
-  const cases = Object.keys(sessions).sort().reverse();
+  const query = getSessionSearchQuery();
+  const cases = Object.keys(sessions).sort().reverse().filter(caseNum => {
+    if (!query) return true;
+    const session = sessions[caseNum];
+    return caseNum.toLowerCase().includes(query) || (session.title || '').toLowerCase().includes(query);
+  });
   list.innerHTML = '';
+  const totalCards = cases.length + 1;
+  if (totalCards <= 7) {
+    list.style.gridTemplateColumns = `repeat(${totalCards}, minmax(220px, 1fr))`;
+  } else {
+    list.style.gridTemplateColumns = `repeat(${totalCards}, minmax(220px, calc((100% - 72px)/7)))`;
+  }
+
+  const newCard = document.createElement('div');
+  newCard.className = 'session-card new-session';
+  newCard.innerHTML = `
+    <div>
+      <strong>جلسة جديدة</strong>
+      <p>ابدأ تقريرًا جديدًا من صفحة فارغة بدون بيانات محفوظة.</p>
+    </div>
+    <div class="session-card-footer">
+      <button class="hb hb-g">بدء</button>
+    </div>
+  `;
+  newCard.addEventListener('click', startNewSession);
+  newCard.querySelector('button')?.addEventListener('click', startNewSession);
+  list.appendChild(newCard);
 
   if (!cases.length) {
     const empty = document.createElement('div');
+    empty.style.gridColumn = '1 / -1';
     empty.style.color = 'var(--dim)';
     empty.style.fontSize = '12px';
-    empty.textContent = 'لا توجد قضايا محفوظة بعد.';
+    empty.textContent = query ? 'لا توجد جلسات مطابقة.' : 'لا توجد جلسات محفوظة بعد.';
     list.appendChild(empty);
     return;
   }
@@ -2092,35 +2191,34 @@ function renderSessionList(){
   cases.forEach(caseNum => {
     const session = sessions[caseNum];
     const item = document.createElement('div');
-    item.className = 'session-item';
+    item.className = `session-card${currentCaseNumber === caseNum ? ' active' : ''}`;
+    item.addEventListener('click', () => switchSession(caseNum));
 
     const info = document.createElement('div');
     info.innerHTML = `<strong>${session.title}</strong><br><small>آخر تحديث: ${formatSessionDate(session.updatedAt)} · ${session.files?.length || 0} ملف محفوظ</small>`;
 
-    const controls = document.createElement('div');
-    controls.style.display = 'flex';
-    controls.style.alignItems = 'center';
-    controls.style.gap = '5px';
+    const footer = document.createElement('div');
+    footer.className = 'session-card-footer';
 
     const openBtn = document.createElement('button');
     openBtn.className = 'hb hb-o';
     openBtn.textContent = currentCaseNumber === caseNum ? 'نشطة' : 'فتح';
     openBtn.disabled = currentCaseNumber === caseNum;
-    openBtn.addEventListener('click', () => switchSession(caseNum));
+    openBtn.addEventListener('click', (e) => { e.stopPropagation(); switchSession(caseNum); });
 
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'hb hb-p';
     deleteBtn.textContent = 'حذف';
-    deleteBtn.addEventListener('click', () => deleteSession(caseNum));
+    deleteBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteSession(caseNum); });
 
-    controls.appendChild(openBtn);
-    controls.appendChild(deleteBtn);
+    footer.appendChild(openBtn);
+    footer.appendChild(deleteBtn);
     item.appendChild(info);
-    item.appendChild(controls);
+    item.appendChild(footer);
 
     if (session.files && session.files.length) {
       const fileList = document.createElement('div');
-      fileList.style.marginTop = '10px';
+      fileList.style.marginTop = '12px';
       session.files.forEach(file => {
         const row = document.createElement('div');
         row.className = 'session-file';
@@ -2130,7 +2228,7 @@ function renderSessionList(){
 
         const download = document.createElement('button');
         download.textContent = 'تنزيل';
-        download.addEventListener('click', () => downloadSessionFile(file));
+        download.addEventListener('click', (e) => { e.stopPropagation(); downloadSessionFile(file); });
 
         row.appendChild(label);
         row.appendChild(download);
@@ -2265,6 +2363,9 @@ function maybeStoreGeneratedHtml(name, html){
   saveSessionFile(fileName, 'html', html);
 }
 
+const DEFAULT_APP_STATE = getAppState();
+
 loadLastSession();
 bindSessionAutosave();
+bindSessionSearchInput();
 
