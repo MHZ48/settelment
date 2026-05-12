@@ -340,6 +340,25 @@
         <input class="tbnum" id="mg-v" type="number" value="36" min="0" max="120" title="هامش الصفحة بالبيكسل">
         <button class="tbb" onclick="applyMargin()" title="تطبيق الهامش" style="font-size:9px">✓</button>
       </div>
+      <!-- Table Controls -->
+      <div class="tbg">
+        <span class="tbl">جدول</span>
+        <input class="tbnum" id="tb-row-height" type="number" value="24" min="16" max="60" title="ارتفاع صف الجدول (بيكسل)" style="width:50px">
+        <button class="tbb" onclick="setTableRowHeight()" title="تطبيق ارتفاع الصف (Ctrl+R)" style="font-size:9px">↕</button>
+        <button class="tbb" onclick="adjustTableRows()" title="تطبيق على كل الصفوف (Ctrl+Shift+R)" style="font-size:8px">↕↕</button>
+        <input class="tbnum" id="tb-col-width" type="number" value="100" min="50" max="300" title="عرض العمود (بيكسل)" style="width:50px">
+        <button class="tbb" onclick="setTableColWidth()" title="تطبيق عرض العمود (Ctrl+C)" style="font-size:9px">↔</button>
+        <button class="tbb" onclick="adjustTableColWidth()" title="تطبيق على كل الأعمدة (Ctrl+Shift+C)" style="font-size:8px">↔↔</button>
+        <button class="tbb" onclick="resetTableFormatting()" title="إعادة تعيين تنسيق الجدول (Ctrl+Shift+X)" style="font-size:9px">🔄</button>
+      </div>
+      <!-- Parts Table Presets -->
+      <div class="tbg">
+        <span class="tbl">جدول القطع</span>
+        <button class="tbb" onclick="applyPartsTableLayout('compact')" title="تخطيط مضغوط" style="font-size:8px">📏</button>
+        <button class="tbb" onclick="applyPartsTableLayout('balanced')" title="تخطيط متوازن" style="font-size:8px">⚖️</button>
+        <button class="tbb" onclick="applyPartsTableLayout('wide-parts')" title="القطع واسعة" style="font-size:8px">📄</button>
+        <button class="tbb" onclick="applyPartsTableLayout('wide-prices')" title="الأسعار واسعة" style="font-size:8px">💰</button>
+      </div>
       <!-- Undo / Redo / Clear -->
       <div class="tbg">
         <button class="tbb" title="تراجع Ctrl+Z" onclick="fmtDoc('undo')">↩</button>
@@ -433,7 +452,7 @@
         </div>
         <div style="flex:1.4;min-width:0">
           <table class="dt" id="parts-tbl">
-            <thead><tr><th>القطع</th><th>متوسط اسعار</th></tr></thead>
+            <thead><tr class="resizable-row"><th class="resizable-header">القطع<div class="resize-handle-col"></div></th><th class="resizable-header">متوسط اسعار<div class="resize-handle-col"></div></th><div class="resize-handle-row"></div></tr></thead>
             <tbody id="parts-tbody"></tbody>
             <tfoot>
               <tr class="tot"><td class="rl" style="text-align:right">المجموع</td><td><span class="rl" id="d-pt">0</span> <b>دينار</b></td></tr>

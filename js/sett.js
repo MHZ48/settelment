@@ -2369,6 +2369,353 @@ loadLastSession();
 bindSessionAutosave();
 bindSessionSearchInput();
 
+// Initialize table resizing functionality
+initColumnResize();
+
+// ═══════════════════════════════════════════
+// TABLE RESIZING FUNCTIONS
+// ═══════════════════════════════════════════
+
+// Get the currently active table in the document editor
+function getActiveTable() {
+  const selection = window.getSelection();
+  if (!selection.rangeCount) return null;
+  
+  let element = selection.getRangeAt(0).commonAncestorContainer;
+  if (element.nodeType !== Node.ELEMENT_NODE) {
+    element = element.parentElement;
+  }
+  
+  // Walk up the DOM to find a table
+  while (element && element.tagName !== 'TABLE') {
+    element = element.parentElement;
+  }
+  
+  return element;
+}
+
+// Get the currently active cell in the table
+function getActiveCell() {
+  const selection = window.getSelection();
+  if (!selection.rangeCount) return null;
+  
+  let element = selection.getRangeAt(0).commonAncestorContainer;
+  if (element.nodeType !== Node.ELEMENT_NODE) {
+    element = element.parentElement;
+  }
+  
+  // Walk up the DOM to find a table cell
+  while (element && !['TD', 'TH'].includes(element.tagName)) {
+    element = element.parentElement;
+  }
+  
+  return element;
+}
+
+// Apply row height to the active table row
+function setTableRowHeight() {
+  const height = parseInt(document.getElementById('tb-row-height').value);
+  if (!height || height < 16 || height > 60) return;
+  
+  const cell = getActiveCell();
+  if (!cell) {
+    alert('يرجى وضع المؤشر داخل خلية الجدول أولاً');
+    return;
+  }
+  
+  const row = cell.closest('tr');
+  if (row) {
+    row.style.height = height + 'px';
+    // Force layout recalculation
+    row.style.display = 'table-row';
+  }
+}
+
+// Apply column width to the active table column
+function setTableColWidth() {
+  const width = parseInt(document.getElementById('tb-col-width').value);
+  if (!width || width < 50 || width > 300) return;
+  
+  const cell = getActiveCell();
+  if (!cell) {
+    alert('يرجى وضع المؤشر داخل خلية الجدول أولاً');
+    return;
+  }
+  
+  const table = cell.closest('table');
+  const colIndex = Array.from(cell.parentElement.children).indexOf(cell);
+  
+  if (table) {
+    // Set width on all cells in this column
+    const rows = table.querySelectorAll('tr');
+    rows.forEach(row => {
+      const cells = row.querySelectorAll('td, th');
+      if (cells[colIndex]) {
+        cells[colIndex].style.width = width + 'px';
+        cells[colIndex].style.minWidth = width + 'px';
+      }
+    });
+  }
+}
+
+// Adjust all rows in the active table
+function adjustTableRows() {
+  const height = parseInt(document.getElementById('tb-row-height').value);
+  if (!height || height < 16 || height > 60) return;
+  
+  const table = getActiveTable();
+  if (!table) {
+    alert('يرجى وضع المؤشر داخل الجدول أولاً');
+    return;
+  }
+  
+  const rows = table.querySelectorAll('tr');
+  rows.forEach(row => {
+    row.style.height = height + 'px';
+    row.style.display = 'table-row';
+  });
+}
+
+// Adjust all columns in the active table
+function adjustTableColWidth() {
+  const width = parseInt(document.getElementById('tb-col-width').value);
+  if (!width || width < 50 || width > 300) return;
+  
+  const table = getActiveTable();
+  if (!table) {
+    alert('يرجى وضع المؤشر داخل الجدول أولاً');
+    return;
+  }
+  
+  const maxCols = Math.max(...Array.from(table.querySelectorAll('tr')).map(row => 
+    row.querySelectorAll('td, th').length
+  ));
+  
+  for (let colIndex = 0; colIndex < maxCols; colIndex++) {
+    const rows = table.querySelectorAll('tr');
+    rows.forEach(row => {
+      const cells = row.querySelectorAll('td, th');
+      if (cells[colIndex]) {
+        cells[colIndex].style.width = width + 'px';
+        cells[colIndex].style.minWidth = width + 'px';
+      }
+    });
+  }
+}
+
+// Reset table formatting (remove custom widths and heights)
+function resetTableFormatting() {
+  const table = getActiveTable();
+  if (!table) {
+    alert('يرجى وضع المؤشر داخل الجدول أولاً');
+    return;
+  }
+  
+  // Remove custom heights from rows
+  const rows = table.querySelectorAll('tr');
+  rows.forEach(row => {
+    row.style.height = '';
+    row.style.display = '';
+  });
+  
+  // Remove custom widths from cells
+  const cells = table.querySelectorAll('td, th');
+  cells.forEach(cell => {
+    cell.style.width = '';
+    cell.style.minWidth = '';
+  });
+}
+
+// ═══════════════════════════════════════════
+// DRAG-TO-RESIZE FUNCTIONALITY FOR PARTS TABLE
+// ═══════════════════════════════════════════
+let isDraggingCol = false;
+let isDraggingRow = false;
+let dragStartX = 0;
+let dragStartY = 0;
+let dragColIndex = -1;
+let dragRowIndex = -1;
+let dragTable = null;
+
+function initColumnResize() {
+  // Add event listeners to resize handles
+  document.querySelectorAll('.resize-handle-col').forEach(handle => {
+    handle.addEventListener('mousedown', startColumnResize);
+  });
+  
+  document.querySelectorAll('.resize-handle-row').forEach(handle => {
+    handle.addEventListener('mousedown', startRowResize);
+  });
+}
+
+function startColumnResize(e) {
+  e.preventDefault();
+  isDraggingCol = true;
+  dragStartX = e.clientX;
+  
+  // Find which column this handle belongs to
+  const header = e.target.closest('th');
+  const table = header.closest('table');
+  dragTable = table;
+  dragColIndex = Array.from(header.parentElement.children).indexOf(header);
+  
+  // Add visual feedback
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+  
+  // Add global mouse events
+  document.addEventListener('mousemove', doColumnResize);
+  document.addEventListener('mouseup', endColumnResize);
+}
+
+function startRowResize(e) {
+  e.preventDefault();
+  isDraggingRow = true;
+  dragStartY = e.clientY;
+  
+  // Find which row this handle belongs to
+  const row = e.target.closest('tr');
+  const table = row.closest('table');
+  dragTable = table;
+  dragRowIndex = Array.from(table.querySelectorAll('tr')).indexOf(row);
+  
+  // Add visual feedback
+  document.body.style.cursor = 'row-resize';
+  document.body.style.userSelect = 'none';
+  
+  // Add global mouse events
+  document.addEventListener('mousemove', doRowResize);
+  document.addEventListener('mouseup', endRowResize);
+}
+
+function doColumnResize(e) {
+  if (!isDraggingCol || !dragTable) return;
+  
+  const deltaX = e.clientX - dragStartX;
+  const currentWidth = dragTable.querySelectorAll('tr')[0].children[dragColIndex].offsetWidth;
+  const newWidth = Math.max(80, Math.min(400, currentWidth + deltaX)); // Min 80px, max 400px
+  
+  // Apply new width to all cells in this column
+  const rows = dragTable.querySelectorAll('tr');
+  rows.forEach(row => {
+    const cells = row.querySelectorAll('td, th');
+    if (cells[dragColIndex]) {
+      cells[dragColIndex].style.width = newWidth + 'px';
+      cells[dragColIndex].style.minWidth = newWidth + 'px';
+    }
+  });
+  
+  dragStartX = e.clientX; // Reset for smooth continuous resizing
+}
+
+function doRowResize(e) {
+  if (!isDraggingRow || !dragTable) return;
+  
+  const deltaY = e.clientY - dragStartY;
+  const rows = dragTable.querySelectorAll('tr');
+  const currentHeight = rows[dragRowIndex].offsetHeight;
+  const newHeight = Math.max(20, Math.min(100, currentHeight + deltaY)); // Min 20px, max 100px
+  
+  // Apply new height to this row
+  if (rows[dragRowIndex]) {
+    rows[dragRowIndex].style.height = newHeight + 'px';
+    rows[dragRowIndex].style.display = 'table-row';
+  }
+  
+  dragStartY = e.clientY; // Reset for smooth continuous resizing
+}
+
+function endColumnResize() {
+  if (!isDraggingCol) return;
+  
+  isDraggingCol = false;
+  dragTable = null;
+  dragColIndex = -1;
+  
+  // Remove visual feedback
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+  
+  // Remove global mouse events
+  document.removeEventListener('mousemove', doColumnResize);
+  document.removeEventListener('mouseup', endColumnResize);
+}
+
+function endRowResize() {
+  if (!isDraggingRow) return;
+  
+  isDraggingRow = false;
+  dragTable = null;
+  dragRowIndex = -1;
+  
+  // Remove visual feedback
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+  
+  // Remove global mouse events
+  document.removeEventListener('mousemove', doRowResize);
+  document.removeEventListener('mouseup', endRowResize);
+}
+
+// Preset layouts for parts table
+function applyPartsTableLayout(layout) {
+  const table = document.getElementById('parts-tbl');
+  if (!table) return;
+  
+  const rows = table.querySelectorAll('tr');
+  
+  switch(layout) {
+    case 'compact':
+      // Narrow columns for space saving, compact rows
+      rows.forEach((row, index) => {
+        if (index === 0) { // Header row
+          const cells = row.querySelectorAll('td, th');
+          if (cells[0]) { cells[0].style.width = '120px'; cells[0].style.minWidth = '120px'; }
+          if (cells[1]) { cells[1].style.width = '100px'; cells[1].style.minWidth = '100px'; }
+        }
+        row.style.height = '24px';
+        row.style.display = 'table-row';
+      });
+      break;
+    case 'balanced':
+      // Equal balanced columns, standard rows
+      rows.forEach((row, index) => {
+        if (index === 0) { // Header row
+          const cells = row.querySelectorAll('td, th');
+          if (cells[0]) { cells[0].style.width = '150px'; cells[0].style.minWidth = '150px'; }
+          if (cells[1]) { cells[1].style.width = '150px'; cells[1].style.minWidth = '150px'; }
+        }
+        row.style.height = '28px';
+        row.style.display = 'table-row';
+      });
+      break;
+    case 'wide-parts':
+      // Wide parts column, narrow price column, comfortable rows
+      rows.forEach((row, index) => {
+        if (index === 0) { // Header row
+          const cells = row.querySelectorAll('td, th');
+          if (cells[0]) { cells[0].style.width = '200px'; cells[0].style.minWidth = '200px'; }
+          if (cells[1]) { cells[1].style.width = '120px'; cells[1].style.minWidth = '120px'; }
+        }
+        row.style.height = '32px';
+        row.style.display = 'table-row';
+      });
+      break;
+    case 'wide-prices':
+      // Narrow parts column, wide price column, spacious rows
+      rows.forEach((row, index) => {
+        if (index === 0) { // Header row
+          const cells = row.querySelectorAll('td, th');
+          if (cells[0]) { cells[0].style.width = '120px'; cells[0].style.minWidth = '120px'; }
+          if (cells[1]) { cells[1].style.width = '200px'; cells[1].style.minWidth = '200px'; }
+        }
+        row.style.height = '36px';
+        row.style.display = 'table-row';
+      });
+      break;
+  }
+}
+
 // ═══════════════════════════════════════════
 // FORM RESIZING
 // ═══════════════════════════════════════════
@@ -2397,6 +2744,38 @@ document.addEventListener('mouseup', () => {
     isResizing = false;
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
+  }
+});
+
+// ═══════════════════════════════════════════
+// KEYBOARD SHORTCUTS FOR TABLE RESIZING
+// ═══════════════════════════════════════════
+document.addEventListener('keydown', (e) => {
+  // Only trigger if focus is in the document editor
+  if (!document.getElementById('dcon').contains(document.activeElement)) return;
+  
+  // Ctrl+Shift+R: Adjust all table rows
+  if (e.ctrlKey && e.shiftKey && e.key === 'R') {
+    e.preventDefault();
+    adjustTableRows();
+  }
+  
+  // Ctrl+Shift+X: Reset table formatting
+  if (e.ctrlKey && e.shiftKey && e.key === 'X') {
+    e.preventDefault();
+    resetTableFormatting();
+  }
+  
+  // Ctrl+R: Set current row height
+  if (e.ctrlKey && !e.shiftKey && e.key === 'r') {
+    e.preventDefault();
+    setTableRowHeight();
+  }
+  
+  // Ctrl+C: Set current column width
+  if (e.ctrlKey && !e.shiftKey && e.key === 'c') {
+    e.preventDefault();
+    setTableColWidth();
   }
 });
 

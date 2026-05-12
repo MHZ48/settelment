@@ -96,6 +96,40 @@ html,body{height:100%;font-family:'Tajawal',sans-serif;direction:rtl;background:
 .tbl{font-size:9px;color:var(--dim)}
 .tbb.act{background:var(--grn);color:#fff;border-color:var(--grn2)}
 
+/* TABLES */
+.dt{border-collapse:collapse;width:100%;margin:3px 0;font-size:12px}
+.dt th,.dt td{border:1px solid #ccc;padding:4px 6px;text-align:center;vertical-align:middle}
+.dt th{background:#f5f5f5;font-weight:700;color:#333}
+.dt td{background:#fff;color:#111}
+.dt .tot{background:#e8f4f8;font-weight:700}
+.dt .il{text-align:right;padding:2px 4px}
+.dt .rl{text-align:left;padding:2px 4px}
+.dt .ef{min-width:40px;display:inline-block;border:1px solid transparent;border-radius:3px;padding:1px 3px;margin:0 2px;background:#f9f9f9;color:#111}
+.dt .ef:focus{outline:none;border-color:#4a90e2;background:#fff}
+.dt .bl{font-weight:700;color:#333}
+
+/* TABLE RESIZING */
+.dt tr[style*="height"]{height:auto !important} /* Allow custom heights */
+.dt td[style*="width"], .dt th[style*="width"]{width:auto !important} /* Allow custom widths */
+.dt td:hover, .dt th:hover{background:#f0f8ff !important; cursor: cell !important} /* Visual feedback on hover */
+.dt tr:hover{background:#f8f8f8 !important} /* Row hover effect */
+
+/* COLUMN RESIZE HANDLES */
+.resizable-header{position:relative;padding-right:20px !important}
+.resize-handle-col{position:absolute;right:0;top:0;bottom:0;width:6px;background:#ddd;cursor:col-resize;opacity:0.7;z-index:10}
+.resize-handle-col:hover{background:#4a90e2;opacity:1}
+.resizable-header:hover .resize-handle-col{opacity:1}
+#parts-tbl .resize-handle-col{background:#52b788}
+#parts-tbl .resize-handle-col:hover{background:#2d6a4f}
+
+/* ROW RESIZE HANDLES */
+.resizable-row{position:relative}
+.resize-handle-row{position:absolute;left:0;right:0;bottom:0;height:6px;background:#ddd;cursor:row-resize;opacity:0.7;z-index:10}
+.resize-handle-row:hover{background:#4a90e2;opacity:1}
+.resizable-row:hover .resize-handle-row{opacity:1}
+#parts-tbl .resize-handle-row{background:#52b788}
+#parts-tbl .resize-handle-row:hover{background:#2d6a4f}
+
 /* PAGE */
 #page{background:#fff;width:100%;max-width:860px;height:1100px;box-shadow:0 4px 24px rgba(0,0,0,.45);border-radius:0 0 4px 4px;position:relative;overflow:hidden;display:flex;flex-direction:column}
 #wm{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;opacity:.22;z-index:0;width:650px;height:650px;object-fit:contain}
