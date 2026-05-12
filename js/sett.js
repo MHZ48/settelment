@@ -2369,3 +2369,34 @@ loadLastSession();
 bindSessionAutosave();
 bindSessionSearchInput();
 
+// ═══════════════════════════════════════════
+// FORM RESIZING
+// ═══════════════════════════════════════════
+let isResizing = false;
+let startX, startWidth;
+
+document.getElementById('resize-handle').addEventListener('mousedown', (e) => {
+  isResizing = true;
+  startX = e.clientX;
+  startWidth = document.getElementById('form').offsetWidth;
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (!isResizing) return;
+  const newWidth = startWidth + (e.clientX - startX);
+  const form = document.getElementById('form');
+  if (newWidth >= 250 && newWidth <= 600) {
+    form.style.width = newWidth + 'px';
+  }
+});
+
+document.addEventListener('mouseup', () => {
+  if (isResizing) {
+    isResizing = false;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }
+});
+
