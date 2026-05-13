@@ -10,6 +10,7 @@
 <script src="https://unpkg.com/pizzip@3.1.7/dist/pizzip-utils.js"></script>
 <script src="https://unpkg.com/docxtemplater@3.50.0/build/docxtemplater.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 </head>
 <body>
 <script>if(localStorage.getItem('theme')==='light')document.documentElement.classList.add('light');</script>
@@ -259,8 +260,12 @@
     <div id="tb" onmousedown="event.preventDefault()">
       <!-- Font -->
       <div class="tbg">
-        <select class="tbsel" id="tb-fn" style="width:88px" title="نوع الخط" onchange="applyFont(this.value)">
+        <select class="tbsel" id="tb-fn" style="width:105px" title="نوع الخط" onchange="applyFont(this.value)">
           <option value="Tajawal">Tajawal</option>
+          <option value="Cairo">Cairo</option>
+          <option value="Amiri">Amiri</option>
+          <option value="'Readex Pro'">Readex Pro</option>
+          <option value="'Noto Naskh Arabic'">Noto Naskh</option>
           <option value="Arial">Arial</option>
           <option value="'Times New Roman'">Times New Roman</option>
           <option value="'Courier New'">Courier New</option>
@@ -269,7 +274,7 @@
       <!-- Size -->
       <div class="tbg">
         <span class="tbl">حجم</span>
-        <input class="tbnum" id="tb-sz" type="number" value="13" min="6" max="96" title="حجم الخط">
+        <input class="tbnum" id="tb-sz" type="number" value="13" min="6" max="96" title="حجم الخط" onkeydown="if(event.key==='Enter'){applyFontSize();event.preventDefault()}">
         <button class="tbb" onclick="applyFontSize()" title="تطبيق الحجم" style="font-size:9px">✓</button>
       </div>
       <!-- Bold / Italic / Underline / Strike -->
@@ -469,13 +474,13 @@
       <!-- Prior incidents — hidden when empty -->
       <div id="d-prior-sec" style="display:none">
         <div class="ds"><span class="rl">5) الحوادث السابقة :</span></div>
-        <div id="d-prior-rows"></div>
+        <div id="d-prior-rows" data-splitblock></div>
       </div>
 
       <!-- After incidents — hidden when empty -->
       <div id="d-after-sec" style="display:none">
         <div class="ds"><span class="rl">6) الحوادث اللاحقة :</span></div>
-        <div id="d-after-rows"></div>
+        <div id="d-after-rows" data-splitblock></div>
       </div>
 
       <!-- Values -->

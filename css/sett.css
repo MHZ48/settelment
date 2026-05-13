@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;900&family=Cairo:wght@400;600;700&family=Amiri:wght@400;700&family=Readex+Pro:wght@300;400;600;700&family=Noto+Naskh+Arabic:wght@400;700&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
   --bg:#0d1117;--panel:#161b22;--sec:#1c2128;--brd:#30363d;
@@ -38,8 +38,8 @@ html,body{height:100%;font-family:'Tajawal',sans-serif;direction:rtl;background:
 .sb{padding:9px 10px;display:flex;flex-direction:column;gap:6px}
 .sb.hid{display:none}
 .fg{display:flex;flex-direction:column;gap:2px}
-.fg label{font-size:9px;color:var(--dim);font-weight:600;letter-spacing:.3px;text-transform:uppercase}
-.fg input,.fg select,.fg textarea{background:var(--inp);border:1px solid var(--brd);border-radius:5px;color:var(--txt);font-family:'Tajawal',sans-serif;font-size:12px;padding:5px 8px;direction:rtl;width:100%;transition:border-color .15s,box-shadow .15s}
+.fg label{font-size:10px;color:var(--dim);font-weight:700;letter-spacing:.3px;text-transform:uppercase}
+.fg input,.fg select,.fg textarea{background:var(--inp);border:1px solid var(--brd);border-radius:5px;color:var(--txt);font-family:'Tajawal',sans-serif;font-size:13px;font-weight:700;padding:5px 8px;direction:rtl;width:100%;transition:border-color .15s,box-shadow .15s}
 .fg input:focus,.fg select:focus,.fg textarea:focus{outline:none;border-color:var(--grn3);box-shadow:0 0 0 2px rgba(82,183,136,.15)}
 .fg input::placeholder,.fg textarea::placeholder{color:#3d4550}
 .fg select option{background:#161b22}
@@ -196,9 +196,6 @@ hr.sd{border:none;border-top:1.5px solid #888;margin:8px 0}
 .session-card.new-session{border-color:var(--grn2);background:rgba(82,183,136,.06)}
 .session-card.new-session strong{color:var(--grn3)}
 .session-card.active{border-color:var(--grn3);box-shadow:0 0 0 2px rgba(82,183,136,.12)}
-.session-file{display:flex;justify-content:space-between;align-items:center;gap:6px;padding:8px 10px;border:1px solid var(--brd);border-radius:8px;margin-bottom:6px;background:var(--inp)}
-.session-file button{padding:4px 8px;border:none;border-radius:4px;background:var(--grn2);color:#fff;cursor:pointer;font-size:11px}
-.session-file button:hover{background:var(--grn3)}
 .session-actions{display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end;align-items:center}
 
 /* ── LIGHT THEME ── */

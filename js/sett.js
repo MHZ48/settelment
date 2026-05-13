@@ -10,7 +10,13 @@ let MAKE_NAME_TO_ID = {}; // لحفظ أرقام الماركات
 // FETCH DATA FROM SUPABASE
 // ═══════════════════════════════════════════
 const SUPABASE_URL_BASE = 'https://dwhckbcrlgjesxniqmmr.supabase.co/rest/v1';
+const SUPABASE_URL      = 'https://dwhckbcrlgjesxniqmmr.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3aGNrYmNybGdqZXN4bmlxbW1yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzNTI5MDMsImV4cCI6MjA5MDkyODkwM30.8rkrHvEUttojlRwR1mBfOA2zhw7zlNs9bAakbpxFaGE';
+
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let realtimeChannel  = null;
+
+const WORKSPACE_ID = 'dahbour-sett';
 
 const HEADERS = {
   'apikey': SUPABASE_KEY,
@@ -323,14 +329,29 @@ function _dconOverflows(dcon) {
 
 function _doCheckOverflow() {
   _overflowPending = false;
-  // Use rAF so all DOM mutations are painted and layout is settled
-  // before we take any measurements.
   requestAnimationFrame(() => {
     const doc = document.getElementById('doc');
     const firstDcon = document.getElementById('dcon');
     if (!firstDcon) return;
 
-    // Snapshot of all content containers in page order
+    // ── Pre-cleanup: undo any splits from the previous run ───────────
+    // 1. Return any moved tfoot elements back to their original tables
+    doc.querySelectorAll('[data-split-tfoot-src]').forEach(tfoot => {
+      const srcId = tfoot.getAttribute('data-split-tfoot-src');
+      const srcTable = document.getElementById(srcId);
+      if (srcTable) {
+        tfoot.removeAttribute('data-split-tfoot-src');
+        srcTable.appendChild(tfoot);
+        if (srcId.startsWith('_split_tbl_')) srcTable.removeAttribute('id');
+      }
+    });
+    // 2. Remove split clones and unhide hidden rows
+    doc.querySelectorAll('[data-split-clone]').forEach(el => el.remove());
+    doc.querySelectorAll('[data-split-hidden]').forEach(el => {
+      el.removeAttribute('data-split-hidden');
+      el.style.removeProperty('display');
+    });
+
     const dcons = [firstDcon, ...doc.querySelectorAll('.p-dcon')];
 
     for (let i = 0; i < dcons.length; i++) {
@@ -339,18 +360,19 @@ function _doCheckOverflow() {
       // ── Phase 1: push overflowing children to the next page ──────────
       while (_dconOverflows(dcon)) {
         const lastChild = dcon.lastElementChild;
-        if (!lastChild) break;               // nothing left to move
+        if (!lastChild) break;
 
         let nextDcon = dcons[i + 1];
         if (!nextDcon) {
-          // Dynamically create a new page with matching header & footer
           const newPage = createNewPage();
           doc.appendChild(newPage);
           nextDcon = newPage.querySelector('.p-dcon');
           dcons.push(nextDcon);
         }
 
-        // Prepend to next page so reading order is preserved
+        // Try to split the element row-by-row instead of moving the whole block
+        if (_trySplitToNext(lastChild, nextDcon)) continue;
+
         nextDcon.insertBefore(lastChild, nextDcon.firstChild);
       }
 
@@ -359,25 +381,171 @@ function _doCheckOverflow() {
       if (nextDcon) {
         while (nextDcon.firstElementChild) {
           const candidate = nextDcon.firstElementChild;
-          dcon.appendChild(candidate);          // trial: move it here
+          // Never reclaim split clones — they shadow rows still on this page
+          if (candidate.hasAttribute('data-split-clone')) break;
+          dcon.appendChild(candidate);
           if (_dconOverflows(dcon)) {
-            // Doesn't fit — restore to top of next page
             dcon.removeChild(candidate);
             nextDcon.insertBefore(candidate, nextDcon.firstChild);
             break;
           }
-          // Fits — keep it here and try the next child
         }
       }
     }
 
     // ── Cleanup: remove now-empty extra pages ─────────────────────────
     doc.querySelectorAll('.page-wrap').forEach((wrap, idx) => {
-      if (idx === 0) return;                   // never remove the first page
+      if (idx === 0) return;
       const dc = wrap.querySelector('.p-dcon');
       if (dc && dc.children.length === 0) wrap.remove();
     });
   });
+}
+
+// Tries to split `el` by hiding its last visible row/child and placing a clone
+// at the top of nextDcon. Returns true if a split was made, false otherwise.
+function _trySplitToNext(el, nextDcon) {
+  // Case 1: element is, or contains, a [data-splitblock] container
+  const splitBlock = (el.hasAttribute && el.hasAttribute('data-splitblock'))
+    ? el
+    : (el.querySelector ? el.querySelector('[data-splitblock]') : null);
+
+  if (splitBlock) {
+    const visible = [...splitBlock.children].filter(c => !c.hasAttribute('data-split-hidden'));
+    if (visible.length > 1) {
+      const last = visible[visible.length - 1];
+      last.setAttribute('data-split-hidden', '');
+      last.style.display = 'none';
+      const clone = last.cloneNode(true);
+      clone.removeAttribute('data-split-hidden');
+      clone.style.removeProperty('display');
+      clone.setAttribute('data-split-clone', '');
+      nextDcon.insertBefore(clone, nextDcon.firstChild);
+      return true;
+    }
+  }
+
+  // Case 2: element is or contains a table with multiple visible rows
+  const table = _findBestSplittableTable(el);
+  if (table) {
+    const tbody = table.querySelector('tbody') || table;
+    const visible = [...tbody.querySelectorAll(':scope > tr')].filter(r => !r.hasAttribute('data-split-hidden'));
+    if (visible.length > 1) {
+      const last = visible[visible.length - 1];
+      last.setAttribute('data-split-hidden', '');
+      last.style.display = 'none';
+      const rowClone = last.cloneNode(true);
+      rowClone.removeAttribute('data-split-hidden');
+      rowClone.style.removeProperty('display');
+
+      // Assign a stable ID to this table so continuations can reference their source
+      if (!table.id) table.id = '_split_tbl_' + Date.now();
+      const srcId = table.id;
+
+      // Find an existing continuation table for the same source anywhere in nextDcon
+      const existing = nextDcon.querySelector(
+        `[data-split-clone][data-split-src="${srcId}"]`
+      );
+      if (existing) {
+        const existBody = existing.querySelector('tbody') || existing;
+        existBody.insertBefore(rowClone, existBody.firstChild);
+      } else {
+        // ── Build the continuation table ────────────────────────────────
+        const cont = table.cloneNode(false);
+        cont.setAttribute('data-split-clone', '');
+        cont.setAttribute('data-split-src', srcId);
+        cont.removeAttribute('id');
+        cont.style.width = '100%';
+        // Preserve column proportions with table-layout:fixed + colgroup
+        const refRow = table.querySelector('thead tr') || table.querySelector('tbody tr');
+        if (refRow && refRow.cells.length) {
+          cont.style.tableLayout = 'fixed';
+          const cg = document.createElement('colgroup');
+          [...refRow.cells].forEach(cell => {
+            const col = document.createElement('col');
+            col.style.width = cell.getBoundingClientRect().width + 'px';
+            cg.appendChild(col);
+          });
+          cont.appendChild(cg);
+        }
+        const contBody = document.createElement('tbody');
+        contBody.appendChild(rowClone);
+        cont.appendChild(contBody);
+        // Move tfoot and implied footer tbodies so totals/wages always end the table
+        const tfoot = table.querySelector('tfoot');
+        if (tfoot) {
+          tfoot.setAttribute('data-split-tfoot-src', srcId);
+          cont.appendChild(tfoot);
+        }
+        ;[...table.querySelectorAll(':scope > tbody')].forEach(tb => {
+          if (tb === tbody) return;
+          tb.setAttribute('data-split-tfoot-src', srcId);
+          cont.appendChild(tb);
+        });
+
+        // ── Place the continuation: inside a shared .sbs wrapper if applicable ──
+        const sbsParent = table.closest('.sbs');
+        if (sbsParent) {
+          // Give the sbs a stable ID so its continuation wrapper can be identified
+          if (!sbsParent.id) sbsParent.id = '_sbs_' + Date.now();
+          // Find or create the continuation .sbs wrapper in nextDcon
+          let contSbs = nextDcon.querySelector(
+            `[data-split-clone][data-split-src="${sbsParent.id}"]`
+          );
+          if (!contSbs) {
+            contSbs = document.createElement('div');
+            contSbs.className = sbsParent.className;
+            contSbs.setAttribute('style', sbsParent.getAttribute('style') || '');
+            contSbs.setAttribute('data-split-clone', '');
+            contSbs.setAttribute('data-split-src', sbsParent.id);
+            nextDcon.insertBefore(contSbs, nextDcon.firstChild);
+          }
+          // Create a column wrapper matching the original column div
+          const colDiv    = table.parentElement;
+          const colIndex  = [...sbsParent.children].indexOf(colDiv);
+          const contCol   = document.createElement('div');
+          contCol.setAttribute('style', colDiv.getAttribute('style') || '');
+          // Insert the column at the same position as in the original sbs
+          const refCol = contSbs.children[colIndex] || null;
+          contSbs.insertBefore(contCol, refCol);
+          contCol.appendChild(cont);
+        } else {
+          // Standalone table: position under the original using margin-right in RTL
+          const dconEl = table.closest('#dcon, .p-dcon');
+          if (dconEl) {
+            const origW    = table.getBoundingClientRect().width;
+            const tRect    = table.getBoundingClientRect();
+            const dRect    = dconEl.getBoundingClientRect();
+            const cs       = window.getComputedStyle(dconEl);
+            const padL     = parseFloat(cs.paddingLeft)  || 0;
+            const padR     = parseFloat(cs.paddingRight) || 0;
+            const contentW = dRect.width - padL - padR;
+            const leftOff  = Math.max(0, tRect.left - dRect.left - padL);
+            cont.style.width       = origW + 'px';
+            cont.style.marginRight = Math.max(0, contentW - origW - leftOff) + 'px';
+            cont.style.marginLeft  = '0';
+          }
+          nextDcon.insertBefore(cont, nextDcon.firstChild);
+        }
+      }
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// Returns the table inside `el` (or `el` itself) that has the most visible rows,
+// or null if no splittable table exists (fewer than 2 visible rows).
+function _findBestSplittableTable(el) {
+  const tables = (el.tagName === 'TABLE') ? [el] : (el.querySelectorAll ? [...el.querySelectorAll('table')] : []);
+  let best = null, bestCount = 0;
+  tables.forEach(t => {
+    const tbody = t.querySelector('tbody') || t;
+    const count = [...tbody.querySelectorAll(':scope > tr')].filter(r => !r.hasAttribute('data-split-hidden')).length;
+    if (count > bestCount) { best = t; bestCount = count; }
+  });
+  return bestCount > 1 ? best : null;
 }
 
 function createNewPage() {
@@ -671,13 +839,13 @@ function restoreRange(){
 // FORMATTING — all go through execCommand on the dcon
 // ═══════════════════════════════════════════
 function fmtDoc(cmd,val){
-  document.getElementById('dcon').focus();
+  restoreRange();
   document.execCommand(cmd,false,val===undefined?null:val);
   updTbState();
 }
 
 function applyFont(family){
-  document.getElementById('dcon').focus();
+  restoreRange();
   const sel=window.getSelection();
   if(sel&&sel.rangeCount>0&&!sel.isCollapsed){
     const range=sel.getRangeAt(0);
@@ -692,11 +860,14 @@ function applyFont(family){
   } else {
     document.getElementById('dcon').style.fontFamily=family;
   }
+  // sync selector to show selected font
+  const fn=document.getElementById('tb-fn');
+  if(fn) fn.value=family;
 }
 
 function applyFontSize(){
   const sz=parseInt(document.getElementById('tb-sz').value)||13;
-  document.getElementById('dcon').focus();
+  restoreRange();
   const sel=window.getSelection();
   if(sel&&sel.rangeCount>0&&!sel.isCollapsed){
     document.execCommand('fontSize',false,'7');
@@ -1784,7 +1955,6 @@ async function saveAsWord() {
     });
     const fname = _exportFileName('f-anum-num', 'f-anum-yr', 'تقرير-التسوية');
     saveAs(blob, fname + '.docx');
-    maybeStoreGeneratedHtml(fname + '-snapshot', document.getElementById('dcon')?.innerHTML || '');
 
   } catch (err) {
     console.error('saveAsWord error:', err);
@@ -1842,7 +2012,6 @@ function saveAsPDF() {
   // in the print-to-PDF dialog (Chrome / Edge / Firefox all honour it)
   const prev = document.title;
   document.title = fname;
-  maybeStoreGeneratedHtml(fname + '-snapshot', document.getElementById('dcon')?.innerHTML || '');
   window.print();
   setTimeout(() => { document.title = prev; }, 1500);
 }
@@ -1987,8 +2156,7 @@ function createSessionObject(caseNum, title){
     title: title || `قضية ${caseNum}`,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    state: getAppState(),
-    files: []
+    state: getAppState()
   };
 }
 
@@ -2001,6 +2169,20 @@ function createOrSwitchSession(caseNum){
   if (existing && existing.state) {
     applyAppState(existing.state);
   } else if (!existing) {
+    parts = [];
+    repairs = [{name:'تركيب القطع'},{name:'دهان مكان الحادث'}];
+    priors = [];
+    afters = [];
+    claimPrices = [];
+    renderParts();
+    updPTbl();
+    renderClaimPriceList();
+    renderRepairs();
+    updRepairTbl();
+    renderDocPriors();
+    renderDocAfters();
+    if (typeof calc === 'function') calc();
+    if (typeof calcBrk === 'function') calcBrk();
     sessions[caseNum] = createSessionObject(caseNum, `قضية ${caseNum}`);
     setStoredSessions(sessions);
   }
@@ -2011,7 +2193,7 @@ function createOrSwitchSession(caseNum){
   scheduleSessionSave();
 }
 
-function saveActiveSession(){
+async function saveActiveSession(){
   const caseNum = currentCaseNumber || getLastCaseNumber();
   if (!caseNum) {
     alert('الرجاء إدخال رقم القضية أولاً.');
@@ -2022,13 +2204,14 @@ function saveActiveSession(){
   sessions[caseNum].state = getAppState();
   sessions[caseNum].updatedAt = new Date().toISOString();
   setStoredSessions(sessions);
+  await upsertSessionToSupabase(caseNum, sessions[caseNum]);
   renderSessionList();
   alert(`تم حفظ الجلسة: ${caseNum}`);
 }
 
 function scheduleSessionSave(){
   clearTimeout(sessionAutoSaveTimer);
-  sessionAutoSaveTimer = setTimeout(() => {
+  sessionAutoSaveTimer = setTimeout(async () => {
     const caseNum = currentCaseNumber || getLastCaseNumber();
     if (!caseNum) return;
     const sessions = getStoredSessions();
@@ -2036,6 +2219,7 @@ function scheduleSessionSave(){
     sessions[caseNum].state = getAppState();
     sessions[caseNum].updatedAt = new Date().toISOString();
     setStoredSessions(sessions);
+    await upsertSessionToSupabase(caseNum, sessions[caseNum]);
   }, 600);
 }
 
@@ -2104,6 +2288,9 @@ function clearAppState(){
     leftInd = 36;
     rightInd = 36;
 
+    renderParts();
+    updPTbl();
+    renderClaimPriceList();
     renderRepairs();
     updRepairTbl();
     renderDocPriors();
@@ -2123,10 +2310,9 @@ function deleteSession(caseNum){
   const sessions = getStoredSessions();
   delete sessions[caseNum];
   setStoredSessions(sessions);
-  if (currentCaseNumber === caseNum) {
-    currentCaseNumber = '';
-  }
+  if (currentCaseNumber === caseNum) currentCaseNumber = '';
   renderSessionList();
+  removeSessionFromSupabase(caseNum);
 }
 
 function formatSessionDate(iso){
@@ -2195,7 +2381,7 @@ function renderSessionList(){
     item.addEventListener('click', () => switchSession(caseNum));
 
     const info = document.createElement('div');
-    info.innerHTML = `<strong>${session.title}</strong><br><small>آخر تحديث: ${formatSessionDate(session.updatedAt)} · ${session.files?.length || 0} ملف محفوظ</small>`;
+    info.innerHTML = `<strong>${session.title}</strong><br><small>آخر تحديث: ${formatSessionDate(session.updatedAt)}</small>`;
 
     const footer = document.createElement('div');
     footer.className = 'session-card-footer';
@@ -2216,61 +2402,10 @@ function renderSessionList(){
     item.appendChild(info);
     item.appendChild(footer);
 
-    if (session.files && session.files.length) {
-      const fileList = document.createElement('div');
-      fileList.style.marginTop = '12px';
-      session.files.forEach(file => {
-        const row = document.createElement('div');
-        row.className = 'session-file';
-
-        const label = document.createElement('div');
-        label.innerHTML = `<strong>${file.name}</strong><br><small>${file.type.toUpperCase()} · ${formatSessionDate(file.updatedAt)}</small>`;
-
-        const download = document.createElement('button');
-        download.textContent = 'تنزيل';
-        download.addEventListener('click', (e) => { e.stopPropagation(); downloadSessionFile(file); });
-
-        row.appendChild(label);
-        row.appendChild(download);
-        fileList.appendChild(row);
-      });
-      item.appendChild(fileList);
-    }
-
     list.appendChild(item);
   });
 }
 
-function downloadSessionFile(file){
-  try {
-    const mime = file.type === 'html' ? 'text/html' : 'application/octet-stream';
-    const blob = new Blob([file.content], { type: mime });
-    saveAs(blob, file.name);
-  } catch (err) {
-    console.error('downloadSessionFile error:', err);
-    alert('حدث خطأ أثناء تنزيل الملف. راجع الكونسول.');
-  }
-}
-
-function saveSessionFile(name, type, content){
-  const caseNum = currentCaseNumber || getLastCaseNumber();
-  if (!caseNum) return;
-  const sessions = getStoredSessions();
-  if (!sessions[caseNum]) sessions[caseNum] = createSessionObject(caseNum);
-  const session = sessions[caseNum];
-  session.files = session.files || [];
-  const existing = session.files.find(f => f.name === name && f.type === type);
-  const now = new Date().toISOString();
-  if (existing) {
-    existing.content = content;
-    existing.updatedAt = now;
-  } else {
-    session.files.unshift({ id: 'file-' + Date.now(), name, type, content, createdAt: now, updatedAt: now });
-  }
-  session.updatedAt = now;
-  setStoredSessions(sessions);
-  renderSessionList();
-}
 
 
 function getAppState(){
@@ -2311,6 +2446,9 @@ function applyAppState(state){
   claimPrices = state.claimPrices || [];
   if (typeof state.leftInd === 'number') leftInd = state.leftInd;
   if (typeof state.rightInd === 'number') rightInd = state.rightInd;
+  renderParts();
+  updPTbl();
+  renderClaimPriceList();
   renderRepairs();
   updRepairTbl();
   renderDocPriors();
@@ -2347,6 +2485,7 @@ function bindSessionAutosave(){
 }
 
 window.addEventListener('beforeunload', () => {
+  clearTimeout(sessionAutoSaveTimer);
   const caseNum = currentCaseNumber || getLastCaseNumber();
   if (!caseNum) return;
   const sessions = getStoredSessions();
@@ -2354,23 +2493,131 @@ window.addEventListener('beforeunload', () => {
   sessions[caseNum].state = getAppState();
   sessions[caseNum].updatedAt = new Date().toISOString();
   setStoredSessions(sessions);
+  const s = sessions[caseNum];
+  fetch(`${SUPABASE_URL_BASE}/sessions`, {
+    method: 'POST',
+    keepalive: true,
+    headers: { ...HEADERS, 'Prefer': 'resolution=merge-duplicates' },
+    body: JSON.stringify({
+      workspace_id: WORKSPACE_ID,
+      case_number:  caseNum,
+      title:        s.title || `قضية ${caseNum}`,
+      state:        s.state,
+      updated_at:   s.updatedAt
+    })
+  });
 });
 
-
-function maybeStoreGeneratedHtml(name, html){
-  if (!name || !html) return;
-  const fileName = `${name.replace(/[\\/:*?"<>|]/g,'_')}.html`;
-  saveSessionFile(fileName, 'html', html);
-}
 
 const DEFAULT_APP_STATE = getAppState();
 
 loadLastSession();
 bindSessionAutosave();
 bindSessionSearchInput();
-
-// Initialize table resizing functionality
 initColumnResize();
+initDconTableResize();
+initSync();
+
+// ═══════════════════════════════════════════
+// SESSION SYNC — SUPABASE
+// ═══════════════════════════════════════════
+
+async function fetchSessionsFromSupabase(){
+  const { data, error } = await supabaseClient
+    .from('sessions').select('*').eq('workspace_id', WORKSPACE_ID);
+  if (error){ console.error('fetchSessionsFromSupabase:', error); return null; }
+  const result = {};
+  data.forEach(row => {
+    result[row.case_number] = {
+      caseNumber: row.case_number,
+      title:      row.title,
+      createdAt:  row.created_at,
+      updatedAt:  row.updated_at,
+      state:      row.state
+    };
+  });
+  return result;
+}
+
+async function upsertSessionToSupabase(caseNum, session){
+  const { error } = await supabaseClient.from('sessions').upsert({
+    workspace_id: WORKSPACE_ID,
+    case_number:  caseNum,
+    title:        session.title || `قضية ${caseNum}`,
+    state:        session.state,
+    updated_at:   session.updatedAt || new Date().toISOString()
+  }, { onConflict: 'workspace_id,case_number' });
+  if (error) console.error('upsertSessionToSupabase:', error);
+}
+
+async function removeSessionFromSupabase(caseNum){
+  const { error } = await supabaseClient.from('sessions')
+    .delete().eq('workspace_id', WORKSPACE_ID).eq('case_number', caseNum);
+  if (error) console.error('removeSessionFromSupabase:', error);
+}
+
+function subscribeToSessionChanges(){
+  if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
+  realtimeChannel = supabaseClient
+    .channel('sessions-sync')
+    .on('postgres_changes', {
+      event: '*', schema: 'public', table: 'sessions',
+      filter: `workspace_id=eq.${WORKSPACE_ID}`
+    }, ({ eventType, new: nr, old: or }) => {
+      const sessions = getStoredSessions();
+      if (eventType === 'DELETE') {
+        delete sessions[or.case_number];
+      } else if (nr.case_number === currentCaseNumber) {
+        if (sessions[nr.case_number]) {
+          sessions[nr.case_number].title     = nr.title;
+          sessions[nr.case_number].updatedAt = nr.updated_at;
+        }
+      } else {
+        sessions[nr.case_number] = {
+          caseNumber: nr.case_number,
+          title:      nr.title,
+          createdAt:  nr.created_at,
+          updatedAt:  nr.updated_at,
+          state:      nr.state
+        };
+      }
+      setStoredSessions(sessions);
+      renderSessionList();
+    })
+    .subscribe();
+}
+
+async function initSync(){
+  subscribeToSessionChanges();
+  const remote = await fetchSessionsFromSupabase();
+  if (!remote) return;
+  const local = getStoredSessions();
+  Object.keys(remote).forEach(caseNum => {
+    if (caseNum === currentCaseNumber) return;
+    const r = remote[caseNum], l = local[caseNum];
+    if (!l || new Date(r.updatedAt) >= new Date(l.updatedAt)) local[caseNum] = r;
+  });
+  setStoredSessions(local);
+  renderSessionList();
+
+  // If localStorage was empty on startup (new device / cleared browser data),
+  // auto-restore the most recently updated session from Supabase so sessions
+  // survive code updates, browser clears, and device switches without any manual steps.
+  if (!currentCaseNumber) {
+    const allCases = Object.keys(local);
+    if (allCases.length > 0) {
+      const mostRecent = allCases.reduce((best, cur) =>
+        new Date(local[cur].updatedAt || 0) > new Date(local[best].updatedAt || 0) ? cur : best
+      );
+      if (local[mostRecent] && local[mostRecent].state) {
+        currentCaseNumber = mostRecent;
+        setLastCaseNumber(mostRecent);
+        applyAppState(local[mostRecent].state);
+      }
+    }
+  }
+}
+
 
 // ═══════════════════════════════════════════
 // TABLE RESIZING FUNCTIONS
@@ -2523,6 +2770,75 @@ function resetTableFormatting() {
   cells.forEach(cell => {
     cell.style.width = '';
     cell.style.minWidth = '';
+  });
+}
+
+// ═══════════════════════════════════════════
+// DRAG-TO-RESIZE FOR DOCUMENT TABLES (dcon)
+// ═══════════════════════════════════════════
+
+function initDconTableResize(){
+  const dcon = document.getElementById('dcon');
+  if (!dcon) return;
+
+  let r = null; // active resize state
+  const T = 6;  // px threshold from cell edge
+
+  function getEdge(e){
+    const cell = e.target.closest('td,th');
+    if (!cell) return null;
+    const rect = cell.getBoundingClientRect();
+    if (e.clientX >= rect.right  - T) return { type: 'col', cell };
+    if (e.clientY >= rect.bottom - T) return { type: 'row', cell };
+    return null;
+  }
+
+  dcon.addEventListener('mousemove', e => {
+    if (r) return;
+    const cell = e.target.closest('td,th');
+    if (!cell) return;
+    const edge = getEdge(e);
+    cell.style.cursor = edge ? (edge.type === 'col' ? 'col-resize' : 'row-resize') : '';
+  }, { passive: true });
+
+  dcon.addEventListener('mousedown', e => {
+    const edge = getEdge(e);
+    if (!edge) return;
+    e.preventDefault();
+    const { cell } = edge;
+    r = {
+      type:    edge.type,
+      table:   cell.closest('table'),
+      col:     Array.from(cell.parentElement.children).indexOf(cell),
+      row:     cell.closest('tr'),
+      startX:  e.clientX,
+      startY:  e.clientY,
+      startW:  cell.offsetWidth,
+      startH:  cell.closest('tr').offsetHeight
+    };
+    document.body.style.cursor    = edge.type === 'col' ? 'col-resize' : 'row-resize';
+    document.body.style.userSelect = 'none';
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!r) return;
+    if (r.type === 'col'){
+      const w = Math.max(20, r.startW + e.clientX - r.startX);
+      r.table.querySelectorAll('tr').forEach(row => {
+        const cells = row.querySelectorAll('td,th');
+        if (cells[r.col]){ cells[r.col].style.width = w + 'px'; cells[r.col].style.minWidth = w + 'px'; }
+      });
+    } else {
+      r.row.style.height = Math.max(14, r.startH + e.clientY - r.startY) + 'px';
+    }
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!r) return;
+    r = null;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    scheduleSessionSave();
   });
 }
 
