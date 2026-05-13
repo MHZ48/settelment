@@ -219,6 +219,214 @@ html.light .bdel{background:#fef0f0;color:#cc0000}
 html.light .bdel:hover{background:#fde0e0}
 html.light #conflict-alert{background:#fef0f0;border-color:#e0a0a0;color:#cc0000}
 html.light ::-webkit-scrollbar-track{background:var(--bg)}
+
+/* ════════════════════════════════════ */
+/* AUTHENTICATION & SESSION SYNC STYLES */
+/* ════════════════════════════════════ */
+
+/* Auth Modal */
+#auth-modal {
+  animation: fadeIn 0.3s ease-in !important;
+}
+
+#auth-modal.open {
+  display: flex !important;
+}
+
+#auth-modal h2 {
+  color: var(--txt);
+  margin-bottom: 10px;
+  font-size: 18px;
+}
+
+#auth-modal h3 {
+  color: var(--txt);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+#auth-modal input,
+#auth-modal select {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--brd);
+  border-radius: 4px;
+  background: var(--inp);
+  color: var(--txt);
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+#auth-modal input:focus,
+#auth-modal select:focus {
+  outline: none;
+  border-color: var(--grn3);
+  box-shadow: 0 0 4px rgba(82, 183, 136, 0.3);
+}
+
+#auth-error {
+  background: rgba(248, 81, 73, 0.1);
+  border-left: 3px solid #f85149;
+  padding: 8px;
+  border-radius: 4px;
+}
+
+#auth-devices {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.device-item {
+  padding: 8px;
+  background: var(--sec);
+  border: 1px solid var(--brd);
+  border-radius: 4px;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+}
+
+.device-item-info {
+  flex: 1;
+}
+
+.device-item button {
+  padding: 3px 8px;
+  background: #da3633;
+  color: white;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 10px;
+}
+
+.device-item button:hover {
+  background: #f85149;
+}
+
+/* User Info Display */
+#user-info {
+  display: flex !important;
+}
+
+#auth-status-btn {
+  background: linear-gradient(135deg, var(--grn2), var(--grn3)) !important;
+  color: white !important;
+  border: none !important;
+}
+
+#auth-status-btn:hover {
+  opacity: 0.9;
+}
+
+/* Sync Status Indicator */
+#sync-status {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+#sync-status.online {
+  background: var(--bg2);
+  border-color: var(--grn3);
+}
+
+#sync-status.offline {
+  background: var(--bg2);
+  border-color: #f85149;
+}
+
+#sync-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+#sync-indicator.syncing {
+  animation: pulse 1s infinite;
+  background: #238636;
+}
+
+#sync-indicator.offline {
+  animation: none;
+  background: #f85149;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(82, 183, 136, 0.7);
+  }
+  50% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 6px rgba(82, 183, 136, 0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Session Manager Styles */
+.session-overlay {
+  animation: fadeIn 0.3s ease-in;
+}
+
+.session-item.active {
+  border-left: 3px solid var(--grn3);
+  background: var(--sec);
+}
+
+.sync-info {
+  font-size: 10px;
+  color: var(--dim);
+  margin-top: 4px;
+  padding: 4px;
+  background: var(--sec);
+  border-radius: 3px;
+}
+
+.sync-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  background: var(--grn2);
+  color: white;
+  border-radius: 3px;
+  font-size: 9px;
+  margin-left: 4px;
+}
+
+.sync-badge.pending {
+  background: #d29922;
+}
+
+.sync-badge.offline {
+  background: #f85149;
+}
 html.light ::-webkit-scrollbar-thumb{background:var(--brd)}
 
 @media print{
