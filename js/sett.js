@@ -468,14 +468,6 @@ function _trySplitToNext(el, nextDcon) {
           });
           cont.appendChild(cg);
         }
-        // Clone thead so the continuation table has the same column headers
-        const srcThead = table.querySelector('thead');
-        if (srcThead) {
-          const theadClone = srcThead.cloneNode(true);
-          theadClone.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
-          theadClone.querySelectorAll('.resize-handle-col,.resize-handle-row').forEach(el => el.remove());
-          cont.appendChild(theadClone);
-        }
         const contBody = document.createElement('tbody');
         contBody.appendChild(rowClone);
         cont.appendChild(contBody);
@@ -1270,7 +1262,7 @@ function updCTbl(){
   },0);
   document.getElementById('d-ct').textContent=s%1===0?s.toFixed(0):s.toFixed(1);
   const _taq=document.getElementById('taqabul-wrap');
-  if(_taq) _taq.style.display=s===0?'none':'';
+  if(_taq) _taq.style.display=parts.length===0?'none':'';
 
   // update form panel list
   renderClaimPriceList();
@@ -1331,7 +1323,7 @@ function updCTblFromInput(){
   document.getElementById('d-ct').textContent=s%1===0?s.toFixed(0):s.toFixed(1);
   document.getElementById('fp-ct').textContent=s%1===0?s.toFixed(0):s.toFixed(1);
   const _taq2=document.getElementById('taqabul-wrap');
-  if(_taq2) _taq2.style.display=s===0?'none':'';
+  if(_taq2) _taq2.style.display=parts.length===0?'none':'';
 }
 
 // ═══════════════════════════════════════════
