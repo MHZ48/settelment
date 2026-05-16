@@ -1929,7 +1929,12 @@ function createSessionObject(caseNum, title){
 }
 
 function createOrSwitchSession(caseNum){
-  if (!caseNum || caseNum === currentCaseNumber) return;
+  if (!caseNum) return;
+  if (caseNum === currentCaseNumber) {
+    const sessions = getStoredSessions();
+    if (sessions[caseNum]?.state) applyAppState(sessions[caseNum].state);
+    return;
+  }
   localStorage.removeItem(SESSION_NEW_MODE_KEY);
 
   const sessions = getStoredSessions();
@@ -1949,13 +1954,14 @@ function createOrSwitchSession(caseNum){
     renderClaimPriceList();
     renderRepairs();
     updRepairTbl();
-    renderDocPriors();
-    renderDocAfters();
+    renderPriors();
+    renderAfters();
     if (typeof calc === 'function') calc();
     if (typeof calcBrk === 'function') calcBrk();
     if (!existing) {
       sessions[caseNum] = createSessionObject(caseNum, `قضية ${caseNum}`);
       setStoredSessions(sessions);
+      upsertSessionToSupabase(caseNum, sessions[caseNum]).catch(() => {});
     }
   }
 
@@ -2077,8 +2083,8 @@ function clearAppState(){
     renderClaimPriceList();
     renderRepairs();
     updRepairTbl();
-    renderDocPriors();
-    renderDocAfters();
+    renderPriors();
+    renderAfters();
     if (typeof updateAnum === 'function') updateAnum();
     if (typeof updateCnum === 'function') updateCnum();
     if (typeof applyIdate === 'function') applyIdate(document.getElementById('f-idate')?.value || '');
@@ -2240,7 +2246,44 @@ function renderSessionList(){
 
 
 
+function _undoSplitsSync(){
+  const doc = document.getElementById('doc');
+  const firstDcon = document.getElementById('dcon');
+  if (!doc || !firstDcon) return;
+  // 1. Return tfoot elements to their original tables
+  doc.querySelectorAll('[data-split-tfoot-src]').forEach(tfoot => {
+    const srcId = tfoot.getAttribute('data-split-tfoot-src');
+    const srcTable = document.getElementById(srcId);
+    if (srcTable) {
+      tfoot.removeAttribute('data-split-tfoot-src');
+      srcTable.appendChild(tfoot);
+      if (srcId.startsWith('_split_tbl_')) srcTable.removeAttribute('id');
+    }
+  });
+  // 2. Remove split clones from all pages
+  doc.querySelectorAll('[data-split-clone]').forEach(el => el.remove());
+  // 3. Show hidden rows
+  doc.querySelectorAll('[data-split-hidden]').forEach(el => {
+    el.removeAttribute('data-split-hidden');
+    el.style.removeProperty('display');
+  });
+  // 4. Move any non-clone elements from extra pages back to #dcon
+  doc.querySelectorAll('.page-wrap').forEach((wrap, idx) => {
+    if (idx === 0) return;
+    const pdc = wrap.querySelector('.p-dcon');
+    if (!pdc) return;
+    [...pdc.children].forEach(child => {
+      if (!child.hasAttribute('data-split-clone')) firstDcon.appendChild(child);
+    });
+  });
+}
+
 function getAppState(){
+  // Undo any active page split so #dcon contains ALL content before saving
+  _undoSplitsSync();
+  // Reschedule the split after this synchronous capture
+  checkOverflow();
+
   const state = { fields: {}, dcon: '', parts: [], repairs: [], priors: [], afters: [], claimPrices: [], leftInd, rightInd };
   document.querySelectorAll('#form input, #form textarea, #form select').forEach(el => {
     if (!el.id) return;
@@ -2271,6 +2314,7 @@ function applyAppState(state){
   }
   const dcon = document.getElementById('dcon');
   if (dcon && typeof state.dcon === 'string') dcon.innerHTML = state.dcon;
+  wrapTaqabulSection();
   parts = state.parts || [];
   repairs = state.repairs || [{name:'تركيب القطع'},{name:'دهان مكان الحادث'}];
   priors = state.priors || [];
@@ -2283,8 +2327,8 @@ function applyAppState(state){
   renderClaimPriceList();
   renderRepairs();
   updRepairTbl();
-  renderDocPriors();
-  renderDocAfters();
+  renderPriors();
+  renderAfters();
   if (typeof updateAnum === 'function') updateAnum();
   if (typeof updateCnum === 'function') updateCnum();
   if (typeof applyIdate === 'function') applyIdate(document.getElementById('f-idate')?.value || '');
@@ -2358,6 +2402,27 @@ setInterval(() => {
   const caseNum = currentCaseNumber || getLastCaseNumber();
   if (caseNum) upsertSessionToSupabase(caseNum, getStoredSessions()[caseNum]).catch(() => {});
 }, 30000);
+
+// Poll remote sessions every 15 seconds to pick up sessions created on other devices
+async function pollRemoteSessions(){
+  const remote = await fetchSessionsFromSupabase();
+  if (!remote) return;
+  const local = getStoredSessions();
+  let changed = false;
+  Object.keys(remote).forEach(caseNum => {
+    if (caseNum === currentCaseNumber) return;
+    const r = remote[caseNum], l = local[caseNum];
+    if (!l || new Date(r.updatedAt) >= new Date(l.updatedAt)) {
+      local[caseNum] = r;
+      changed = true;
+    }
+  });
+  if (changed) {
+    setStoredSessions(local);
+    renderSessionList();
+  }
+}
+setInterval(pollRemoteSessions, 15000);
 
 
 const DEFAULT_APP_STATE = getAppState();
