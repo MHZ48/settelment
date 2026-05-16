@@ -1140,7 +1140,7 @@ function renderParts(){
       <div style="display:grid;grid-template-columns:1fr 68px 36px 24px;gap:4px;align-items:start">
         <input type="text" value="${escH(p.name)}" placeholder="اسم القطعة"
           oninput="parts[${i}].name=this.value;updPTbl()"
-          style="background:var(--inp);border:1px solid var(--brd);border-radius:4px;color:var(--txt);font-family:'Tajawal',sans-serif;font-size:10px;padding:4px 6px;width:100%">
+          style="background:var(--inp);border:1px solid var(--brd);border-radius:4px;color:var(--txt);font-family:'Tajawal',sans-serif;font-size:10px;padding:4px 6px;width:100%;font-weight:700">
         <div style="text-align:center">
           <input type="number" value="${escH(p.price)}" placeholder="السعر"
             onchange="parts[${i}].price=this.value;claimPrices[${i}]=null;renderParts();updPTbl();calc()" oninput="parts[${i}].price=this.value;claimPrices[${i}]=null;updPTbl();calc()" min="0"
@@ -1348,7 +1348,7 @@ function renderRepairs(){
   if(!container) return;
   container.innerHTML=repairs.map((r,i)=>`
     <div style="display:grid;grid-template-columns:1fr 22px;gap:3px;align-items:center;margin-bottom:3px">
-      <input type="text" value="${escH(r.name)}" placeholder="اسم الإصلاح..." oninput="repairs[${i}].name=this.value;updRepairTbl()" style="background:var(--inp);border:1px solid var(--brd);border-radius:4px;color:var(--txt);font-family:'Tajawal',sans-serif;font-size:11px;padding:4px 8px;width:100%">
+      <input type="text" value="${escH(r.name)}" placeholder="اسم الإصلاح..." oninput="repairs[${i}].name=this.value;updRepairTbl()" style="background:var(--inp);border:1px solid var(--brd);border-radius:4px;color:var(--txt);font-family:'Tajawal',sans-serif;font-size:11px;padding:4px 8px;width:100%;font-weight:700">
       <button onmousedown="event.preventDefault()" onclick="remRepair(${i})" style="padding:3px 6px;border-radius:4px;border:none;cursor:pointer;background:#3d1515;color:#ff8080;font-size:12px;line-height:1;font-family:'Tajawal',sans-serif">✕</button>
     </div>`).join('');
 }

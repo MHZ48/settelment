@@ -154,7 +154,7 @@
   <div class="st" onclick="tog(this)"><span>٥. جدول القطع</span><span class="arr">▼</span></div>
   <div class="sb">
     <div class="psb">
-      <input type="text" id="psearch" placeholder="ابحث أو أدخل اسم قطعة..." oninput="filterP(this.value)" onblur="checkNewPart(this.value)">
+      <input type="text" id="psearch" placeholder="ابحث أو أدخل اسم قطعة..." oninput="filterP(this.value)" onblur="checkNewPart(this.value)" onkeydown="if(event.key==='Enter'){const pl=document.getElementById('plist');if(pl.classList.contains('vis')&&fp.length){selP(fp[0]);}else{addCustomP();}event.preventDefault();}">
       <button class="bsm badd" onclick="addCustomP()">+ أضف</button>
     </div>
     <div class="plist" id="plist"></div>
