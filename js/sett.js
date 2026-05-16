@@ -1,4 +1,4 @@
-// ═══════════════════════════════════════════
+﻿// ═══════════════════════════════════════════
 // GLOBAL DATA VARIABLES
 // ═══════════════════════════════════════════
 let PDB = [];
@@ -468,6 +468,14 @@ function _trySplitToNext(el, nextDcon) {
           });
           cont.appendChild(cg);
         }
+        // Clone thead so the continuation table has the same column headers
+        const srcThead = table.querySelector('thead');
+        if (srcThead) {
+          const theadClone = srcThead.cloneNode(true);
+          theadClone.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+          theadClone.querySelectorAll('.resize-handle-col,.resize-handle-row').forEach(el => el.remove());
+          cont.appendChild(theadClone);
+        }
         const contBody = document.createElement('tbody');
         contBody.appendChild(rowClone);
         cont.appendChild(contBody);
@@ -498,16 +506,23 @@ function _trySplitToNext(el, nextDcon) {
             contSbs.setAttribute('style', sbsParent.getAttribute('style') || '');
             contSbs.setAttribute('data-split-clone', '');
             contSbs.setAttribute('data-split-src', sbsParent.id);
+            // Pre-create all column placeholders so the side-by-side layout is preserved
+            [...sbsParent.children].forEach(origCol => {
+              const ph = document.createElement('div');
+              ph.setAttribute('style', origCol.getAttribute('style') || '');
+              contSbs.appendChild(ph);
+            });
             nextDcon.insertBefore(contSbs, nextDcon.firstChild);
           }
-          // Create a column wrapper matching the original column div
-          const colDiv    = table.parentElement;
-          const colIndex  = [...sbsParent.children].indexOf(colDiv);
-          const contCol   = document.createElement('div');
-          contCol.setAttribute('style', colDiv.getAttribute('style') || '');
-          // Insert the column at the same position as in the original sbs
-          const refCol = contSbs.children[colIndex] || null;
-          contSbs.insertBefore(contCol, refCol);
+          // Place the continuation table in the correct column slot
+          const colDiv   = table.parentElement;
+          const colIndex = [...sbsParent.children].indexOf(colDiv);
+          const contCol  = contSbs.children[colIndex] || (() => {
+            const ph = document.createElement('div');
+            ph.setAttribute('style', colDiv.getAttribute('style') || '');
+            contSbs.appendChild(ph);
+            return ph;
+          })();
           contCol.appendChild(cont);
         } else {
           // Standalone table: position under the original using margin-right in RTL
@@ -799,6 +814,22 @@ function updateRespDisplay(val){
   } else {
     line.innerHTML=`حدود المسؤولية : حادث مشترك/ ${pctSpan} من مسؤولية على المركبة المؤمنة لدينا .`;
   }
+  updateMushtarakLine();
+}
+
+function updateMushtarakLine(){
+  const pct=parseInt(document.getElementById('f-resp')?.value)||100;
+  const total=parseFloat(document.getElementById('d-rp')?.textContent)||0;
+  const box=document.getElementById('mushtarak-line');
+  if(!box) return;
+  if(pct<100 && total>0){
+    const result=Math.round(total*(pct/100));
+    document.getElementById('ml-pct').textContent=pct;
+    document.getElementById('ml-val').textContent=result;
+    box.style.display='';
+  } else {
+    box.style.display='none';
+  }
 }
 // set default
 updateRespDisplay(100);
@@ -890,7 +921,7 @@ function applyMargin(){
   updRuler();
 }
 
-function setLH(v){if(v)document.getElementById('dcon').style.lineHeight=v}
+function setLH(v){const n=parseFloat(v);if(n>=1)document.getElementById('dcon').style.lineHeight=n;}
 function setPara(v){
   if(!v)return;
   document.querySelectorAll('#dcon p,#dcon div.il,#dcon div.ds').forEach(el=>el.style.marginBottom=v);
@@ -1047,7 +1078,10 @@ function addCustomP(){
   const n=inp.value.trim();if(!n)return;
   addP(n,'');inp.value='';document.getElementById('plist').classList.remove('vis');
 }
-function addP(name,price,sub){parts.push({name,sub:sub||'',subs:sub?[sub]:[],price:price||''});claimPrices.push(null);renderParts();updPTbl()}
+function addP(name,price,sub){
+  if(parts.some(p=>p.name.trim()===name.trim())) return;
+  parts.push({name,sub:sub||'',subs:sub?[sub]:[],price:price||''});claimPrices.push(null);renderParts();updPTbl();checkOverflow();
+}
 let _subRes=[];
 function filterSub(q,i,j){
   const listId='spl-'+i+'-'+j;
@@ -1140,7 +1174,7 @@ function remSub(i,j){
   updPTbl();
   updCTbl();
 }
-function remP(i){parts.splice(i,1);claimPrices.splice(i,1);renderParts();updPTbl();calc()}
+function remP(i){parts.splice(i,1);claimPrices.splice(i,1);renderParts();updPTbl();calc();checkOverflow();}
 function escH(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;')}
 function getFullName(p){
   const arr=p.subs&&p.subs.length?p.subs:(p.sub?[{name:p.sub,price:''}]:[]);
@@ -1305,7 +1339,7 @@ function updCTblFromInput(){
 // ═══════════════════════════════════════════
 function addRepair(val){
   if(!val.trim()) return;
-  repairs.unshift({name:val.trim()});
+  repairs.splice(Math.max(0, repairs.length - 2), 0, {name:val.trim()});
   renderRepairs();
   updRepairTbl();
 }
@@ -1374,6 +1408,15 @@ function updateDeprDoc(val, reason){
     line.style.display='none';
     span.style.display='';
   }
+}
+
+function updPriceHeader(){
+  const disc=parseFloat(document.getElementById('f-disc')?.value)||0;
+  const th=document.getElementById('parts-price-header');
+  if(!th) return;
+  const handle=th.querySelector('.resize-handle-col');
+  th.textContent=disc>0?'اسعار وكالة':'متوسط اسعار';
+  if(handle) th.appendChild(handle);
 }
 
 function calcBrk(){
@@ -1449,6 +1492,7 @@ function calc(){
   } else {
     net2Row.style.display='none';
   }
+  updateMushtarakLine();
 }
 
 // ═══════════════════════════════════════════
@@ -1707,301 +1751,6 @@ function _exportFileName(numId, yrId, fallback) {
   return raw.replace(/[\\/:*?"<>|]/g, '_');
 }
 
-async function saveAsWord() {
-  try {
-    // 1. Fetch the local Word template. Try several candidate paths so the export
-    //    works whether the site is served from /Sett/, /settelment/, or the
-    //    settelment folder itself (different XAMPP setups on different machines).
-    const TEMPLATE_CANDIDATES = [
-      'js/template.docx',
-      './js/template.docx',
-      'settelment/js/template.docx',
-      '/settelment/js/template.docx',
-      'template.docx',
-    ];
-
-    let response = null;
-    let triedPath = '';
-    let lastStatus = '';
-    let lastError = '';
-    for (const path of TEMPLATE_CANDIDATES) {
-      triedPath = path;
-      try {
-        const r = await fetch(path, { cache: 'no-store' });
-        lastStatus = String(r.status);
-        if (r.ok) { response = r; break; }
-      } catch (e) {
-        lastError = (e && e.message) || String(e);
-      }
-    }
-    if (!response) {
-      const detail = lastStatus ? ('HTTP ' + lastStatus) : (lastError || 'network error');
-      throw new Error('TEMPLATE_FETCH_FAILED:' + detail + ' (last tried: ' + triedPath + ')');
-    }
-    const buffer = await response.arrayBuffer();
-
-    // Sanity check — a real .docx is a ZIP, so it must start with "PK".
-    const head = new Uint8Array(buffer, 0, Math.min(4, buffer.byteLength));
-    if (head[0] !== 0x50 || head[1] !== 0x4B) {
-      throw new Error('NOT_A_DOCX: js/template.docx is not a valid Word/.docx file (likely the server returned HTML for a missing path).');
-    }
-
-    // 2. Load buffer into PizZip and initialize docxtemplater.
-    //    The CDN build of docxtemplater 3.x exposes window.docxtemplater (lowercase),
-    //    but some bundles / versions use Docxtemplater — handle both.
-    if (typeof PizZip !== 'function') {
-      throw new Error('LIB_MISSING: PizZip did not load. Check the <script> CDN tags in <head>.');
-    }
-    const Dx = window.docxtemplater || window.Docxtemplater;
-    if (typeof Dx !== 'function') {
-      throw new Error('LIB_MISSING: docxtemplater did not load. Check the <script> CDN tags in <head>.');
-    }
-    if (typeof saveAs !== 'function') {
-      throw new Error('LIB_MISSING: FileSaver.js (saveAs) did not load. Check the <script> CDN tags in <head>.');
-    }
-
-    const zip = new PizZip(buffer);
-
-    // Patch template XML: add missing {#repairs} opener that Word omitted
-    const _docXmlFile = zip.file('word/document.xml');
-    if (_docXmlFile) {
-      const _docXml = _docXmlFile.asText().replace('{name}{/repairs}', '{#repairs}{name}{/repairs}');
-      zip.file('word/document.xml', _docXml);
-    }
-
-    const doc = new Dx(zip, {
-      paragraphLoop: true,
-      linebreaks: true,
-    });
-
-    // 3. Helpers — read form input values and document spans
-    const v = id => (document.getElementById(id)?.value || '').toString().trim();
-    const t = id => (document.getElementById(id)?.textContent || '').toString().trim();
-    const half50 = ' (50%)';
-
-    // 4. Process the global parts array for {#parts}…{/parts} loops.
-    //    Each entry exposes:
-    //       - name    (with " (50%)" suffix when half is true)
-    //       - price   (numeric, halved when half is true)
-    //       - subs    (nested loop, each with name/price and (50%) handling)
-    //       - total   (base + subs)
-    const partsData = (typeof parts !== 'undefined' ? parts : []).map((p, i) => {
-      const baseName  = (p.name || '') + (p.half ? half50 : '');
-      const basePrice = parseFloat(p.price) || 0;
-      const subsArr   = Array.isArray(p.subs) ? p.subs : (p.sub ? [{ name: p.sub, price: '' }] : []);
-
-      const subs = subsArr.map(s => {
-        const sObj   = (typeof s === 'object' && s) ? s : { name: s, price: '' };
-        const sName  = (sObj.name || '').toString().trim();
-        const sPrice = parseFloat(sObj.price) || 0;
-        const sHalf  = !!sObj.half;
-        return {
-          name:  sName + (sHalf ? half50 : ''),
-          price: sHalf ? sPrice * 0.5 : sPrice,
-        };
-      });
-
-      const subsTotal = subs.reduce((a, s) => a + (s.price || 0), 0);
-      const ownPrice  = p.half ? basePrice * 0.5 : basePrice;
-
-      return {
-        index: i + 1,
-        name:  baseName,
-        price: ownPrice,
-        subs,
-        total: ownPrice + subsTotal,
-      };
-    });
-
-    // 5. Process the global repairs array for {#repairs}…{/repairs} loops.
-    const repairsData = (typeof repairs !== 'undefined' ? repairs : []).map((r, i) => ({
-      index: i + 1,
-      name:  (r.name || '').toString(),
-    }));
-
-    // 5a. Build the المطالبة table data → {#claims}…{/claims}.
-    //     Mirrors updCTbl(): claim price = manual override (claimPrices[i]) if set,
-    //     otherwise auto-calculated via calcClaimPrice(). Half-parts contribute 0
-    //     for the parent base; only their non-half subs count.
-    const claimsData = (typeof parts !== 'undefined' ? parts : []).map((p, i) => {
-      const baseName = (p.name || '') + (p.half ? half50 : '');
-      // Build the displayed full name including subs (matches getFullName)
-      const subsArr  = Array.isArray(p.subs) ? p.subs : (p.sub ? [{ name: p.sub, price: '' }] : []);
-      const subNames = subsArr.map(s => {
-        const sObj  = (typeof s === 'object' && s) ? s : { name: s, price: '' };
-        const sName = (sObj.name || '').toString().trim();
-        return sName + (sObj.half ? half50 : '');
-      }).filter(Boolean);
-      const fullName = [baseName, ...subNames].filter(Boolean).join(' / ');
-
-      // Compute the claim price (auto unless manually overridden)
-      let priceVal = 0;
-      if (typeof claimPrices !== 'undefined' && claimPrices[i] !== null && claimPrices[i] !== undefined) {
-        priceVal = parseFloat(claimPrices[i]) || 0;
-      } else {
-        const claimBase = (p.half ? 0 : (parseFloat(p.price) || 0))
-          + subsArr.reduce((a, s) => {
-              const sObj = (typeof s === 'object' && s) ? s : { name: s, price: '' };
-              if (sObj.half) return a;
-              return a + (parseFloat(sObj.price) || 0);
-            }, 0);
-        if (typeof calcClaimPrice === 'function') priceVal = calcClaimPrice(claimBase) || 0;
-        else priceVal = Math.round(claimBase * 0.1);  // fallback: 10%
-      }
-      const niceVal = priceVal % 1 === 0 ? priceVal.toFixed(0) : priceVal.toFixed(1);
-      return { index: i + 1, name: fullName, price: niceVal };
-    });
-
-    // 5b. Prior / after incidents → {#priors}…{/priors} and {#afters}…{/afters}.
-    function fmtIncidentDate(d) { return (d || '').toString().replace(/-/g, '/'); }
-    function fmtDamage(dmg) {
-      if (Array.isArray(dmg)) return dmg.join('+');
-      return (dmg || '').toString();
-    }
-    const priorsData = (typeof priors !== 'undefined' ? priors : []).map((p, i) => ({
-      index:  i + 1,
-      date:   fmtIncidentDate(p.date),
-      damage: fmtDamage(p.damage),
-    }));
-    const aftersData = (typeof afters !== 'undefined' ? afters : []).map((p, i) => ({
-      index:  i + 1,
-      date:   fmtIncidentDate(p.date),
-      damage: fmtDamage(p.damage),
-    }));
-
-    // 5b. Apply business rules for description and liability.
-    //  • description: if empty, the whole section is hidden (use {#has_description}…{/has_description})
-    //  • liability:
-    //      - empty / >=100  →  "100%"
-    //      - any other number  →  "حادث مشترك/ X%"  (matches updateRespDisplay logic)
-    const rawDescription = t('d-ddesc');
-    const hasDescription = rawDescription.length > 0;
-
-    const rawLiability   = v('f-resp');
-    const liabilityNum   = parseInt(rawLiability, 10);
-    const liabilityValid = !isNaN(liabilityNum);
-    const isShared       = liabilityValid && liabilityNum < 100;
-    const liabilityPct   = (liabilityValid ? liabilityNum : 100) + '%';
-    const liabilityText  = isShared ? ('حادث مشترك/ ' + liabilityPct) : liabilityPct;
-    const liabilityFull  = isShared
-      ? ('حدود المسؤولية : حادث مشترك/ ' + liabilityPct + ' من مسؤولية على المركبة المؤمنة لدينا .')
-      : ('حدود المسؤولية : ' + liabilityPct + ' من مسؤولية على المركبة المؤمنة لدينا .');
-
-    // 6. Build the data object — form fields → English template keys
-    const data = {
-      // ── Header / dates ──
-      report_date:    v('f-rdate'),
-      incident_date:  v('f-idate'),
-      incident_num:   v('f-anum-num'),
-      incident_year:  v('f-anum-yr'),
-      claim_num:      v('f-cnum-num'),
-      claim_year:     v('f-cnum-yr'),
-      // ── Parties / policy ──
-      claim_name:     v('f-clm'),
-      policy_num:     v('f-pol'),
-      // ── Vehicles ──
-      causing_vehicle_num: v('f-ccar'),  // رقم السيارة المتسببة
-      damaged_vehicle_num: v('f-vnum'),  // رقم المركبة المتضررة
-      // alias kept for backwards compatibility — same as damaged_vehicle_num
-      vehicle_num:    v('f-vnum'),
-      vehicle_type:   v('f-vtype'),  // نوع المركبة
-      vehicle_class:  v('f-vcls'),   // صنف المركبة
-      // aliases kept for backwards compatibility
-      vehicle_make:   v('f-vtype'),
-      vehicle_model:  v('f-vcls'),
-      vehicle_year:   v('f-vmod-display'),
-      vehicle_color:  v('f-vcolor'),
-      vehicle_reg:    v('f-vreg'),
-      vehicle_post:   v('f-vpost'),
-      // ── Liability / damage ──
-      liability:        liabilityValid ? liabilityNum : 100,    // raw number (defaults to 100)
-      liability_pct:    liabilityPct,                            // "100%"  /  "75%"
-      liability_text:   liabilityText,                           // "100%"  /  "حادث مشترك/ 75%"
-      liability_full:   liabilityFull,                           // full sentence (matches doc)
-      is_shared_fault:  isShared,                                // boolean for {#is_shared_fault}…{/}
-      damage_areas:     t('d-darea'),
-      description:      rawDescription,
-      has_description:  hasDescription,                          // boolean for {#has_description}…{/}
-      // ── Money ──
-      wages:          v('f-wages'),
-      depreciation:   v('f-depr'),
-      depr_pct:       v('f-deprpct'),
-      discount_pct:   v('f-disc'),
-      breakdown_expr: t('d-bx'),
-      breakdown_val:  t('d-bv'),
-      // ── Computed totals (read straight from the live document) ──
-      parts_sum:      t('d-pt'),     // مجموع القطع
-      net_after_disc: t('d-net'),    // بعد خصم الوكالة
-      net_final:      t('d-net2'),   // الصافي بعد الاستهلاك
-      report_total:   t('d-rp'),     // قيمة التقرير النهائية
-      // ── Loops ──
-      parts:          partsData,      // {#parts}…{/parts}    — جدول القطع
-      repairs:        repairsData,    // {#repairs}…{/repairs} — جدول الإصلاحات
-      claims:         claimsData,     // {#claims}…{/claims}   — جدول المطالبة
-      priors:         priorsData,     // {#priors}…{/priors}   — الحوادث السابقة
-      afters:         aftersData,     // {#afters}…{/afters}   — الحوادث اللاحقة
-      has_priors:     priorsData.length > 0,
-      has_afters:     aftersData.length > 0,
-      parts_total:    partsData.reduce((a, p) => a + (p.total || 0), 0),
-    };
-
-    // 7. Render the template with the data
-    doc.render(data);
-
-    // 8. Generate the .docx Blob and trigger the download via FileSaver
-    const blob = doc.getZip().generate({
-      type: 'blob',
-      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    });
-    const fname = _exportFileName('f-anum-num', 'f-anum-yr', 'تقرير-التسوية');
-    saveAs(blob, fname + '.docx');
-
-  } catch (err) {
-    console.error('saveAsWord error:', err);
-
-    // Pull docxtemplater per-tag errors (template syntax / missing tags) into a list
-    let dxErrors = '';
-    if (err && err.properties && Array.isArray(err.properties.errors)) {
-      console.error('docxtemplater errors:', err.properties.errors);
-      dxErrors = err.properties.errors.slice(0, 5).map(e => {
-        const where = e.properties && (e.properties.file || e.properties.context || '');
-        return '• ' + (e.message || e.name) + (where ? '  [' + where + ']' : '');
-      }).join('\n');
-    } else if (err && err.properties && err.properties.id) {
-      // Single-error case (e.g., scopeparser issue, render failure)
-      dxErrors = '• ' + err.properties.id + ': ' + (err.message || '');
-    }
-
-    const msg  = (err && err.message) || String(err);
-    const name = err && err.name;
-
-    let userMsg;
-    if (msg.startsWith('TEMPLATE_FETCH_FAILED') || name === 'TypeError' || msg.includes('Failed to fetch')) {
-      const detail = msg.replace(/^TEMPLATE_FETCH_FAILED:?/, '').trim();
-      const pageUrl = (typeof location !== 'undefined') ? location.href : '';
-      userMsg = 'تعذّر تحميل قالب Word.\n'
-              + 'تأكد من وجود الملف js/template.docx بجانب index.html، ومن تشغيل الموقع عبر سيرفر محلي (مثل XAMPP) وليس بفتح الملف مباشرةً عبر file://.\n\n'
-              + 'تفاصيل الخطأ:\n' + (detail || msg) + '\n'
-              + 'الصفحة الحالية:\n' + pageUrl;
-    } else if (msg.startsWith('NOT_A_DOCX')) {
-      userMsg = 'الملف js/template.docx ليس ملف Word صالحاً.\n'
-              + 'تأكد من أن الملف موجود فعلاً في المسار الصحيح وأنه ملف .docx حقيقي.';
-    } else if (msg.startsWith('LIB_MISSING')) {
-      userMsg = 'لم يتم تحميل المكتبات المطلوبة (PizZip / docxtemplater / FileSaver).\n'
-              + 'تحقّق من وسوم <script> في <head> داخل index.html، ومن اتصال الإنترنت لأن الروابط من CDN.';
-    } else if (dxErrors) {
-      userMsg = 'خطأ في القالب (template.docx):\n' + dxErrors
-              + '\n\nراجع الكونسول للتفاصيل الكاملة.';
-    } else {
-      userMsg = 'حدث خطأ أثناء إنشاء ملف Word.\n\n'
-              + (name ? name + ': ' : '') + msg
-              + '\n\nراجع الكونسول للتفاصيل.';
-    }
-    alert(userMsg);
-  }
-}
-
-
 function saveAsPDF() {
   const def   = _exportFileName('f-cnum-num', 'f-cnum-yr', 'تقرير-التسوية');
   const input = prompt('اسم ملف PDF', def);
@@ -2089,6 +1838,12 @@ checkOverflow();
   if(rd&&!rd.value){rd.value=today;S('rdate',today);}
 })();
 
+document.addEventListener('wheel', () => {
+  if (document.activeElement && document.activeElement.type === 'number') {
+    document.activeElement.blur();
+  }
+}, { passive: true });
+
 (function buildYearSelect(){
   const sel=document.getElementById('f-vmod-display');
   const curYear=new Date().getFullYear();
@@ -2113,8 +1868,29 @@ function toggleTheme(){
 
 const SESSION_STORE_KEY = 'SETT_WORKSPACE_SESSIONS';
 const SESSION_ACTIVE_KEY = 'SETT_WORKSPACE_LAST_CASE';
+const SESSION_NEW_MODE_KEY = 'SETT_WORKSPACE_NEW_SESSION';
 let sessionAutoSaveTimer = null;
 let currentCaseNumber = '';
+let lastLocalSaveAt = '';
+let syncStatusTimer = null;
+
+function setSyncStatus(status){
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  clearTimeout(syncStatusTimer);
+  if (status === 'saving') {
+    el.textContent = '⟳ جاري الحفظ...';
+    el.className = 'sync-saving';
+  } else if (status === 'saved') {
+    el.textContent = '✓ محفوظ';
+    el.className = 'sync-saved';
+    syncStatusTimer = setTimeout(() => { el.textContent = ''; el.className = ''; }, 3000);
+  } else if (status === 'error') {
+    el.textContent = '✗ فشل الحفظ';
+    el.className = 'sync-error';
+    syncStatusTimer = setTimeout(() => { el.textContent = ''; el.className = ''; }, 5000);
+  }
+}
 
 function getCaseNumber(){
   const num = (document.getElementById('f-cnum-num')?.value || '').trim();
@@ -2162,13 +1938,15 @@ function createSessionObject(caseNum, title){
 
 function createOrSwitchSession(caseNum){
   if (!caseNum || caseNum === currentCaseNumber) return;
-  
+  localStorage.removeItem(SESSION_NEW_MODE_KEY);
+
   const sessions = getStoredSessions();
   const existing = sessions[caseNum];
-  
+
   if (existing && existing.state) {
     applyAppState(existing.state);
-  } else if (!existing) {
+  } else {
+    // New session or session synced from Supabase without state yet — start blank
     parts = [];
     repairs = [{name:'تركيب القطع'},{name:'دهان مكان الحادث'}];
     priors = [];
@@ -2183,10 +1961,12 @@ function createOrSwitchSession(caseNum){
     renderDocAfters();
     if (typeof calc === 'function') calc();
     if (typeof calcBrk === 'function') calcBrk();
-    sessions[caseNum] = createSessionObject(caseNum, `قضية ${caseNum}`);
-    setStoredSessions(sessions);
+    if (!existing) {
+      sessions[caseNum] = createSessionObject(caseNum, `قضية ${caseNum}`);
+      setStoredSessions(sessions);
+    }
   }
-  
+
   currentCaseNumber = caseNum;
   setLastCaseNumber(caseNum);
   renderSessionList();
@@ -2211,7 +1991,9 @@ async function saveActiveSession(){
 
 function scheduleSessionSave(){
   clearTimeout(sessionAutoSaveTimer);
+  setSyncStatus('saving');
   sessionAutoSaveTimer = setTimeout(async () => {
+    sessionAutoSaveTimer = null;
     const caseNum = currentCaseNumber || getLastCaseNumber();
     if (!caseNum) return;
     const sessions = getStoredSessions();
@@ -2219,7 +2001,14 @@ function scheduleSessionSave(){
     sessions[caseNum].state = getAppState();
     sessions[caseNum].updatedAt = new Date().toISOString();
     setStoredSessions(sessions);
-    await upsertSessionToSupabase(caseNum, sessions[caseNum]);
+    lastLocalSaveAt = sessions[caseNum].updatedAt;
+    try {
+      await upsertSessionToSupabase(caseNum, sessions[caseNum]);
+      setSyncStatus('saved');
+    } catch(e) {
+      console.error('scheduleSessionSave:', e);
+      setSyncStatus('error');
+    }
   }, 600);
 }
 
@@ -2227,9 +2016,11 @@ function loadLastSession(){
   const lastCase = getLastCaseNumber();
   if (lastCase) {
     const sessions = getStoredSessions();
-    if (sessions[lastCase] && sessions[lastCase].state) {
+    if (sessions[lastCase]) {
       currentCaseNumber = lastCase;
-      applyAppState(sessions[lastCase].state);
+      if (sessions[lastCase].state) {
+        applyAppState(sessions[lastCase].state);
+      }
       return;
     }
   }
@@ -2254,6 +2045,7 @@ function switchSession(caseNum){
 function startNewSession(){
   currentCaseNumber = '';
   setLastCaseNumber('');
+  localStorage.setItem(SESSION_NEW_MODE_KEY, '1');
   clearAppState();
   closeSessionManager();
 }
@@ -2313,6 +2105,54 @@ function deleteSession(caseNum){
   if (currentCaseNumber === caseNum) currentCaseNumber = '';
   renderSessionList();
   removeSessionFromSupabase(caseNum);
+}
+
+function exportSessionsToFile(){
+  const sessions = getStoredSessions();
+  if (!Object.keys(sessions).length) {
+    alert('لا توجد جلسات محفوظة للتصدير.');
+    return;
+  }
+  const blob = new Blob([JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), sessions }, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `sett-sessions-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importSessionsFromFile(input){
+  const file = input?.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      const incoming = parsed.sessions || parsed;
+      if (typeof incoming !== 'object' || Array.isArray(incoming)) throw new Error('invalid format');
+
+      const local = getStoredSessions();
+      let added = 0, updated = 0;
+      Object.keys(incoming).forEach(caseNum => {
+        const imp = incoming[caseNum];
+        if (!imp || typeof imp !== 'object') return;
+        const loc = local[caseNum];
+        if (!loc || new Date(imp.updatedAt || 0) > new Date(loc.updatedAt || 0)) {
+          local[caseNum] = imp;
+          loc ? updated++ : added++;
+          upsertSessionToSupabase(caseNum, imp);
+        }
+      });
+      setStoredSessions(local);
+      renderSessionList();
+      alert(`تم الاستيراد: ${added} جديدة، ${updated} محدثة.`);
+    } catch {
+      alert('خطأ: الملف غير صالح أو تالف.');
+    }
+    input.value = '';
+  };
+  reader.readAsText(file);
 }
 
 function formatSessionDate(iso){
@@ -2484,8 +2324,9 @@ function bindSessionAutosave(){
   });
 }
 
-window.addEventListener('beforeunload', () => {
+function saveSessionNow(useKeepalive = false){
   clearTimeout(sessionAutoSaveTimer);
+  sessionAutoSaveTimer = null;
   const caseNum = currentCaseNumber || getLastCaseNumber();
   if (!caseNum) return;
   const sessions = getStoredSessions();
@@ -2493,10 +2334,11 @@ window.addEventListener('beforeunload', () => {
   sessions[caseNum].state = getAppState();
   sessions[caseNum].updatedAt = new Date().toISOString();
   setStoredSessions(sessions);
+  lastLocalSaveAt = sessions[caseNum].updatedAt;
   const s = sessions[caseNum];
   fetch(`${SUPABASE_URL_BASE}/sessions`, {
     method: 'POST',
-    keepalive: true,
+    keepalive: useKeepalive,
     headers: { ...HEADERS, 'Prefer': 'resolution=merge-duplicates' },
     body: JSON.stringify({
       workspace_id: WORKSPACE_ID,
@@ -2506,7 +2348,24 @@ window.addEventListener('beforeunload', () => {
       updated_at:   s.updatedAt
     })
   });
+}
+
+// Save on tab close / navigation
+window.addEventListener('beforeunload', () => saveSessionNow(true));
+
+// pagehide fires on mobile/iOS Safari where beforeunload is unreliable
+window.addEventListener('pagehide', () => saveSessionNow(true));
+
+// Save immediately when tab goes to background (covers force-kills before beforeunload fires)
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) saveSessionNow(false);
 });
+
+// Periodic fallback save every 30 seconds in case a Supabase write was missed
+setInterval(() => {
+  const caseNum = currentCaseNumber || getLastCaseNumber();
+  if (caseNum) upsertSessionToSupabase(caseNum, getStoredSessions()[caseNum]).catch(() => {});
+}, 30000);
 
 
 const DEFAULT_APP_STATE = getAppState();
@@ -2568,9 +2427,15 @@ function subscribeToSessionChanges(){
       if (eventType === 'DELETE') {
         delete sessions[or.case_number];
       } else if (nr.case_number === currentCaseNumber) {
-        if (sessions[nr.case_number]) {
-          sessions[nr.case_number].title     = nr.title;
-          sessions[nr.case_number].updatedAt = nr.updated_at;
+        const isEcho = nr.updated_at === lastLocalSaveAt;
+        const remoteNewer = new Date(nr.updated_at) > new Date(sessions[nr.case_number]?.updatedAt || 0);
+        if (!sessions[nr.case_number]) sessions[nr.case_number] = {};
+        sessions[nr.case_number].title     = nr.title;
+        sessions[nr.case_number].updatedAt = nr.updated_at;
+        // Apply remote state if it's from another device and no local save is pending
+        if (remoteNewer && !isEcho && nr.state && sessionAutoSaveTimer === null) {
+          sessions[nr.case_number].state = nr.state;
+          applyAppState(nr.state);
         }
       } else {
         sessions[nr.case_number] = {
@@ -2603,7 +2468,8 @@ async function initSync(){
   // If localStorage was empty on startup (new device / cleared browser data),
   // auto-restore the most recently updated session from Supabase so sessions
   // survive code updates, browser clears, and device switches without any manual steps.
-  if (!currentCaseNumber) {
+  // But skip if the user explicitly requested a new session.
+  if (!currentCaseNumber && !localStorage.getItem(SESSION_NEW_MODE_KEY)) {
     const allCases = Object.keys(local);
     if (allCases.length > 0) {
       const mostRecent = allCases.reduce((best, cur) =>

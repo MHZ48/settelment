@@ -6,10 +6,6 @@
 <title>محرر تقرير التسوية</title>
 <link rel="stylesheet" href="css/sett.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-<script src="https://unpkg.com/pizzip@3.1.7/dist/pizzip.js"></script>
-<script src="https://unpkg.com/pizzip@3.1.7/dist/pizzip-utils.js"></script>
-<script src="https://unpkg.com/docxtemplater@3.50.0/build/docxtemplater.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 </head>
 <body>
@@ -22,11 +18,11 @@
     <p>نظام متزامن ثنائي الاتجاه | اللغة العربية</p>
   </div>
   <div style="display:flex;gap:5px;align-items:center">
+    <small id="sync-status"></small>
     <button id="theme-btn" class="hb hb-o" onclick="toggleTheme()" title="تبديل المظهر">🌙</button>
     <button class="hb hb-o" onclick="openSessionManager()" title="إدارة الجلسات">📁 جلسات</button>
     <button class="hb hb-o" onclick="window.print()">🖨 طباعة</button>
-    <button class="hb hb-w" onclick="saveAsWord()">📄 Word</button>
-    <button class="hb hb-p" onclick="saveAsPDF()">📕 PDF</button>
+<button class="hb hb-p" onclick="saveAsPDF()">📕 PDF</button>
   </div>
 </div>
 
@@ -147,7 +143,15 @@
 </div>
 
 <div class="fs">
-  <div class="st" onclick="tog(this)"><span>٤. جدول القطع</span><span class="arr">▼</span></div>
+  <div class="st" onclick="tog(this)"><span>٤. جدول الإصلاحات</span><span class="arr">▼</span></div>
+  <div class="sb">
+    <div id="added-repairs"></div>
+    <input type="text" id="new-repair-inp" placeholder="+ اكتب إصلاح جديد واضغط Enter..." onkeydown="if(event.key==='Enter'){addRepair(this.value);this.value='';}" style="background:var(--inp);border:1px dashed var(--grn2);border-radius:4px;color:var(--grn3);font-family:'Tajawal',sans-serif;font-size:11px;padding:5px 8px;width:100%;margin-top:3px">
+  </div>
+</div>
+
+<div class="fs">
+  <div class="st" onclick="tog(this)"><span>٥. جدول القطع</span><span class="arr">▼</span></div>
   <div class="sb">
     <div class="psb">
       <input type="text" id="psearch" placeholder="ابحث أو أدخل اسم قطعة..." oninput="filterP(this.value)" onblur="checkNewPart(this.value)">
@@ -156,14 +160,6 @@
     <div class="plist" id="plist"></div>
     <div id="added-parts"></div>
     <div class="fbox"><div class="ft">مجموع القطع</div><div class="fv"><span id="fp-pt">0</span> دينار</div></div>
-  </div>
-</div>
-
-<div class="fs">
-  <div class="st" onclick="tog(this)"><span>٥. جدول الإصلاحات</span><span class="arr">▼</span></div>
-  <div class="sb">
-    <div id="added-repairs"></div>
-    <input type="text" id="new-repair-inp" placeholder="+ اكتب إصلاح جديد واضغط Enter..." onkeydown="if(event.key==='Enter'){addRepair(this.value);this.value='';}" style="background:var(--inp);border:1px dashed var(--grn2);border-radius:4px;color:var(--grn3);font-family:'Tajawal',sans-serif;font-size:11px;padding:5px 8px;width:100%;margin-top:3px">
   </div>
 </div>
 
@@ -194,7 +190,7 @@
     <div class="fbox"><div class="ft">قيمة التقرير = القطع + الإصلاحات + نقصان القيمة + العطل</div><div class="fv"><span id="fp-rp">0</span> دينار</div></div>
     <div class="fg" style="margin-top:4px"><label>خصم وكالة (%)</label>
       <input type="number" id="f-disc" placeholder="0" min="0" max="100" step="0.5"
-        oninput="calc()"
+        oninput="calc();updPriceHeader()"
         style="background:var(--inp);border:1px solid var(--brd);border-radius:5px;color:var(--txt);font-family:'Tajawal',sans-serif;font-size:12px;padding:5px 8px;width:100%">
     </div>
     <div class="fg" style="margin-top:4px"><label>خصم الاستهلاك (%)</label>
@@ -257,7 +253,7 @@
     </div>
 
     <!-- TOOLBAR -->
-    <div id="tb" onmousedown="event.preventDefault()">
+    <div id="tb" onmousedown="if(event.target.tagName!=='INPUT'&&event.target.tagName!=='SELECT')event.preventDefault()">
       <!-- Font -->
       <div class="tbg">
         <select class="tbsel" id="tb-fn" style="width:105px" title="نوع الخط" onchange="applyFont(this.value)">
@@ -274,8 +270,9 @@
       <!-- Size -->
       <div class="tbg">
         <span class="tbl">حجم</span>
-        <input class="tbnum" id="tb-sz" type="number" value="13" min="6" max="96" title="حجم الخط" onkeydown="if(event.key==='Enter'){applyFontSize();event.preventDefault()}">
-        <button class="tbb" onclick="applyFontSize()" title="تطبيق الحجم" style="font-size:9px">✓</button>
+        <input class="tbnum" id="tb-sz" type="number" value="13" min="6" max="96" title="حجم الخط"
+          oninput="applyFontSize()"
+          onkeydown="if(event.key==='Enter'){applyFontSize();event.preventDefault()}">
       </div>
       <!-- Bold / Italic / Underline / Strike -->
       <div class="tbg">
@@ -303,21 +300,12 @@
       <!-- Spacing -->
       <div class="tbg">
         <span class="tbl">تباعد</span>
-        <select class="tbsel" title="تباعد الأسطر" onchange="setLH(this.value)">
-          <option value="">أسطر</option>
-          <option value="1.2">1.2</option>
-          <option value="1.5">1.5</option>
-          <option value="1.7" selected>1.7</option>
-          <option value="2.0">2.0</option>
-          <option value="2.5">2.5</option>
-        </select>
-        <select class="tbsel" title="تباعد الفقرات" onchange="setPara(this.value)">
-          <option value="">فقرات</option>
-          <option value="0">0</option>
-          <option value="4px">صغير</option>
-          <option value="8px">متوسط</option>
-          <option value="14px">كبير</option>
-        </select>
+        <span class="tbl" style="font-size:9px;opacity:.7">أسطر</span>
+        <input class="tbnum" id="tb-lh" type="number" value="1.7" min="1" max="4" step="0.1"
+          title="تباعد الأسطر" style="width:44px" oninput="setLH(this.value)">
+        <span class="tbl" style="font-size:9px;opacity:.7">فقرات</span>
+        <input class="tbnum" id="tb-para" type="number" value="0" min="0" max="60" step="1"
+          title="تباعد الفقرات (px)" style="width:44px" oninput="setPara(this.value+'px')">
       </div>
       <!-- Text color / Highlight -->
       <div class="tbg">
@@ -390,7 +378,7 @@
         <span style="display:inline-flex;align-items:center;gap:4px">
           <span class="rl">التاريخ&nbsp;:</span>
           <span id="d-today-wrap">
-            <span id="d-today" style="font-weight:700;color:#333;cursor:pointer;border-bottom:1px dashed #aaa;padding-bottom:1px" title="انقر للتعديل"></span>
+            <span id="d-today" style="font-weight:700;color:#333;cursor:pointer" title="انقر للتعديل"></span>
             <input type="date" id="d-today-input" style="display:none;font-family:'Tajawal',sans-serif;font-size:12px;border:1px solid #999;border-radius:3px;padding:1px 4px" onchange="applyTodayEdit(this.value)" onblur="hideTodayInput()">
           </span>
         </span>
@@ -445,7 +433,7 @@
 
       <!-- Section 4 -->
       <div class="ds">كشف الاضرار : استنادا على صور المخطط الكروكي للحادث:</div>
-      <div class="il"><span class="bl">1) </span><span class="rl">الاصلاحات</span><span style="display:inline-block;width:240px"></span><span class="bl">2) </span><span class="rl">القطع :</span></div>
+      <div class="il"><span class="bl">1) </span><span class="rl">الاصلاحات</span><span style="display:inline-block;width:290px"></span><span class="bl">2) </span><span class="rl">القطع :</span></div>
 
       <!-- Parts + Repairs side by side -->
       <div class="sbs" style="margin-top:5px;gap:30px">
@@ -457,7 +445,7 @@
         </div>
         <div style="flex:1.4;min-width:0">
           <table class="dt" id="parts-tbl">
-            <thead><tr class="resizable-row"><th class="resizable-header">القطع<div class="resize-handle-col"></div></th><th class="resizable-header">متوسط اسعار<div class="resize-handle-col"></div></th><div class="resize-handle-row"></div></tr></thead>
+            <thead><tr class="resizable-row"><th class="resizable-header">القطع<div class="resize-handle-col"></div></th><th class="resizable-header" id="parts-price-header">متوسط اسعار<div class="resize-handle-col"></div></th><div class="resize-handle-row"></div></tr></thead>
             <tbody id="parts-tbody"></tbody>
             <tfoot>
               <tr class="tot"><td class="rl" style="text-align:right">المجموع</td><td><span class="rl" id="d-pt">0</span> <b>دينار</b></td></tr>
@@ -501,9 +489,12 @@
 
 
       <!-- Counter claim -->
+      <div id="mushtarak-line" style="display:none;margin:4px 0 6px;font-size:13px;font-weight:700;color:#111;text-align:center">
+        <b>حادث مشترك <span id="ml-pct" style="color:#cc0000"></span>% :&nbsp;<span id="ml-val" style="color:#cc0000"></span> دينار</b>
+      </div>
       <div class="ds taqabul-section"><span class="rl" style="font-size:13.5px">الادعاء بالتقابل :</span></div>
       <div class="il" style="font-size:12.5px">المطالبة ببدل قيمة القطع المستبدلة المستوجبة الاستبدال وعلى فرض الثبوت حيث تم احتساب القطع :</div>
-      <table class="dt" style="margin-top:5px;width:82%;margin-left:auto;margin-right:auto">
+      <table class="dt" id="ctr-tbl" style="margin-top:5px;width:82%;margin-left:auto;margin-right:auto">
         <thead><tr><th style="width:10%">الرقم</th><th style="width:55%">اسم القطعة</th><th style="width:35%">قيمة القطع التالفة</th></tr></thead>
         <tbody id="ctr-tbody"></tbody>
         <tfoot><tr class="tot"><td colspan="2" class="rl" style="text-align:right">المجموع</td><td><span class="rl" id="d-ct">0</span> <b>دينار</b></td></tr></tfoot>
@@ -544,6 +535,11 @@
       </div>
       <div class="session-actions">
         <button class="hb hb-o" onclick="closeSessionManager()">إغلاق</button>
+        <label class="hb hb-p" title="استيراد جلسات من ملف" style="cursor:pointer">
+          📂 استيراد
+          <input type="file" accept=".json" id="import-sessions-input" style="display:none" onchange="importSessionsFromFile(this)">
+        </label>
+        <button class="hb hb-b" onclick="exportSessionsToFile()" title="تصدير جميع الجلسات إلى ملف">📤 تصدير</button>
         <button class="hb hb-g" onclick="saveActiveSession()">💾 حفظ الجلسة الحالية</button>
       </div>
     </div>
