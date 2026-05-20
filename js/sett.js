@@ -24,6 +24,13 @@ const HEADERS = {
   'Content-Type': 'application/json'
 };
 
+// ═══════════════════════════════════════════
+// SESSION SYNC — CUSTOM BACKEND
+// ═══════════════════════════════════════════
+const SERVER_URL = 'http://localhost:3001'; // ← غيّر لـ IP السيرفر عند النشر
+const SERVER_KEY = 'sett-secret-2024';      // ← يجب أن يطابق API_KEY في .env
+const S_HEADERS  = { 'Content-Type': 'application/json', 'x-api-key': SERVER_KEY };
+
 // جلب جميع البيانات من الجداول الخمسة في نفس اللحظة لتسريع التطبيق
 Promise.all([
   fetch(`${SUPABASE_URL_BASE}/car_makes?select=*`, { headers: HEADERS }).then(r => r.json()),
@@ -1962,7 +1969,7 @@ function createOrSwitchSession(caseNum){
     if (!existing) {
       sessions[caseNum] = createSessionObject(caseNum, `قضية ${caseNum}`);
       setStoredSessions(sessions);
-      upsertSessionToSupabase(caseNum, sessions[caseNum]).catch(() => {});
+      upsertSessionToServer(caseNum, sessions[caseNum]).catch(() => {});
     }
   }
 
@@ -1983,7 +1990,7 @@ async function saveActiveSession(){
   sessions[caseNum].state = getAppState();
   sessions[caseNum].updatedAt = new Date().toISOString();
   setStoredSessions(sessions);
-  await upsertSessionToSupabase(caseNum, sessions[caseNum]);
+  await upsertSessionToServer(caseNum, sessions[caseNum]);
   renderSessionList();
   alert(`تم حفظ الجلسة: ${caseNum}`);
 }
@@ -2002,7 +2009,7 @@ function scheduleSessionSave(){
     setStoredSessions(sessions);
     lastLocalSaveAt = sessions[caseNum].updatedAt;
     try {
-      await upsertSessionToSupabase(caseNum, sessions[caseNum]);
+      await upsertSessionToServer(caseNum, sessions[caseNum]);
       setSyncStatus('saved');
     } catch(e) {
       console.error('scheduleSessionSave:', e);
@@ -2102,7 +2109,7 @@ function deleteSession(caseNum){
   setStoredSessions(sessions);
   if (currentCaseNumber === caseNum) currentCaseNumber = '';
   renderSessionList();
-  removeSessionFromSupabase(caseNum);
+  removeSessionFromServer(caseNum);
 }
 
 function exportSessionsToFile(){
@@ -2139,7 +2146,7 @@ function importSessionsFromFile(input){
         if (!loc || new Date(imp.updatedAt || 0) > new Date(loc.updatedAt || 0)) {
           local[caseNum] = imp;
           loc ? updated++ : added++;
-          upsertSessionToSupabase(caseNum, imp);
+          upsertSessionToServer(caseNum, imp);
         }
       });
       setStoredSessions(local);
@@ -2174,18 +2181,13 @@ function renderSessionList(){
   if (!list) return;
   const sessions = getStoredSessions();
   const query = getSessionSearchQuery();
-  const cases = Object.keys(sessions).sort().reverse().filter(caseNum => {
+  const cases = Object.keys(sessions).sort((a,b) => (sessions[b].updatedAt||0) - (sessions[a].updatedAt||0)).filter(caseNum => {
     if (!query) return true;
     const session = sessions[caseNum];
     return caseNum.toLowerCase().includes(query) || (session.title || '').toLowerCase().includes(query);
   });
   list.innerHTML = '';
-  const totalCards = cases.length + 1;
-  if (totalCards <= 7) {
-    list.style.gridTemplateColumns = `repeat(${totalCards}, minmax(220px, 1fr))`;
-  } else {
-    list.style.gridTemplateColumns = `repeat(${totalCards}, minmax(220px, calc((100% - 72px)/7)))`;
-  }
+  list.style.gridTemplateColumns = '';
 
   const newCard = document.createElement('div');
   newCard.className = 'session-card new-session';
@@ -2386,17 +2388,11 @@ function saveSessionNow(useKeepalive = false){
   setStoredSessions(sessions);
   lastLocalSaveAt = sessions[caseNum].updatedAt;
   const s = sessions[caseNum];
-  fetch(`${SUPABASE_URL_BASE}/sessions`, {
+  fetch(`${SERVER_URL}/api/sessions/upsert`, {
     method: 'POST',
     keepalive: useKeepalive,
-    headers: { ...HEADERS, 'Prefer': 'resolution=merge-duplicates' },
-    body: JSON.stringify({
-      workspace_id: WORKSPACE_ID,
-      case_number:  caseNum,
-      title:        s.title || `قضية ${caseNum}`,
-      state:        s.state,
-      updated_at:   s.updatedAt
-    })
+    headers: S_HEADERS,
+    body: JSON.stringify({ caseNum, title: s.title || `قضية ${caseNum}`, state: s.state, updatedAt: s.updatedAt })
   });
 }
 
@@ -2411,15 +2407,15 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) saveSessionNow(false);
 });
 
-// Periodic fallback save every 30 seconds in case a Supabase write was missed
+// Periodic fallback save every 30 seconds
 setInterval(() => {
   const caseNum = currentCaseNumber || getLastCaseNumber();
-  if (caseNum) upsertSessionToSupabase(caseNum, getStoredSessions()[caseNum]).catch(() => {});
+  if (caseNum) upsertSessionToServer(caseNum, getStoredSessions()[caseNum]).catch(() => {});
 }, 30000);
 
 // Poll remote sessions every 15 seconds to pick up sessions created on other devices
 async function pollRemoteSessions(){
-  const remote = await fetchSessionsFromSupabase();
+  const remote = await fetchSessionsFromServer();
   if (!remote) return;
   const local = getStoredSessions();
   let changed = false;
@@ -2449,83 +2445,78 @@ initDconTableResize();
 initSync();
 
 // ═══════════════════════════════════════════
-// SESSION SYNC — SUPABASE
+// SESSION SYNC — CUSTOM BACKEND
 // ═══════════════════════════════════════════
 
-async function fetchSessionsFromSupabase(){
-  const { data, error } = await supabaseClient
-    .from('sessions').select('*').eq('workspace_id', WORKSPACE_ID);
-  if (error){ console.error('fetchSessionsFromSupabase:', error); return null; }
-  const result = {};
-  data.forEach(row => {
-    result[row.case_number] = {
-      caseNumber: row.case_number,
-      title:      row.title,
-      createdAt:  row.created_at,
-      updatedAt:  row.updated_at,
-      state:      row.state
-    };
-  });
-  return result;
+async function fetchSessionsFromServer(){
+  try {
+    const res = await fetch(`${SERVER_URL}/api/sessions`, { headers: S_HEADERS });
+    if (!res.ok) throw new Error(res.status);
+    return await res.json();
+  } catch(e) { console.warn('fetchSessionsFromServer:', e); return null; }
 }
 
-async function upsertSessionToSupabase(caseNum, session){
-  const { error } = await supabaseClient.from('sessions').upsert({
-    workspace_id: WORKSPACE_ID,
-    case_number:  caseNum,
-    title:        session.title || `قضية ${caseNum}`,
-    state:        session.state,
-    updated_at:   session.updatedAt || new Date().toISOString()
-  }, { onConflict: 'workspace_id,case_number' });
-  if (error) console.error('upsertSessionToSupabase:', error);
+async function upsertSessionToServer(caseNum, session){
+  try {
+    await fetch(`${SERVER_URL}/api/sessions/upsert`, {
+      method: 'POST', headers: S_HEADERS,
+      body: JSON.stringify({ caseNum, title: session.title || `قضية ${caseNum}`, state: session.state, updatedAt: session.updatedAt || new Date().toISOString() })
+    });
+  } catch(e) { console.warn('upsertSessionToServer:', e); throw e; }
 }
 
-async function removeSessionFromSupabase(caseNum){
-  const { error } = await supabaseClient.from('sessions')
-    .delete().eq('workspace_id', WORKSPACE_ID).eq('case_number', caseNum);
-  if (error) console.error('removeSessionFromSupabase:', error);
+async function removeSessionFromServer(caseNum){
+  try {
+    await fetch(`${SERVER_URL}/api/sessions/delete`, {
+      method: 'POST', headers: S_HEADERS,
+      body: JSON.stringify({ caseNum })
+    });
+  } catch(e) { console.warn('removeSessionFromServer:', e); }
 }
+
+let sseSource = null;
 
 function subscribeToSessionChanges(){
-  if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
-  realtimeChannel = supabaseClient
-    .channel('sessions-sync')
-    .on('postgres_changes', {
-      event: '*', schema: 'public', table: 'sessions',
-      filter: `workspace_id=eq.${WORKSPACE_ID}`
-    }, ({ eventType, new: nr, old: or }) => {
-      const sessions = getStoredSessions();
-      if (eventType === 'DELETE') {
-        delete sessions[or.case_number];
-      } else if (nr.case_number === currentCaseNumber) {
-        const isEcho = nr.updated_at === lastLocalSaveAt;
-        const remoteNewer = new Date(nr.updated_at) > new Date(sessions[nr.case_number]?.updatedAt || 0);
-        if (!sessions[nr.case_number]) sessions[nr.case_number] = {};
-        sessions[nr.case_number].title     = nr.title;
-        sessions[nr.case_number].updatedAt = nr.updated_at;
-        // Apply remote state if it's from another device and no local save is pending
-        if (remoteNewer && !isEcho && nr.state && sessionAutoSaveTimer === null) {
-          sessions[nr.case_number].state = nr.state;
-          applyAppState(nr.state);
-        }
-      } else {
-        sessions[nr.case_number] = {
-          caseNumber: nr.case_number,
-          title:      nr.title,
-          createdAt:  nr.created_at,
-          updatedAt:  nr.updated_at,
-          state:      nr.state
-        };
+  if (sseSource) sseSource.close();
+  sseSource = new EventSource(`${SERVER_URL}/api/sessions/stream?key=${encodeURIComponent(SERVER_KEY)}`);
+
+  sseSource.addEventListener('upsert', e => {
+    const nr = JSON.parse(e.data);
+    const sessions = getStoredSessions();
+    const isEcho = nr.updatedAt === lastLocalSaveAt;
+    const remoteNewer = new Date(nr.updatedAt) > new Date(sessions[nr.caseNum]?.updatedAt || 0);
+    if (!sessions[nr.caseNum]) sessions[nr.caseNum] = {};
+    sessions[nr.caseNum].title     = nr.title;
+    sessions[nr.caseNum].updatedAt = nr.updatedAt;
+    if (nr.caseNum === currentCaseNumber) {
+      if (remoteNewer && !isEcho && nr.state && sessionAutoSaveTimer === null) {
+        sessions[nr.caseNum].state = nr.state;
+        applyAppState(nr.state);
       }
-      setStoredSessions(sessions);
-      renderSessionList();
-    })
-    .subscribe();
+    } else {
+      sessions[nr.caseNum].state = nr.state;
+    }
+    setStoredSessions(sessions);
+    renderSessionList();
+  });
+
+  sseSource.addEventListener('delete', e => {
+    const { caseNum } = JSON.parse(e.data);
+    const sessions = getStoredSessions();
+    delete sessions[caseNum];
+    setStoredSessions(sessions);
+    renderSessionList();
+  });
+
+  sseSource.onerror = () => {
+    sseSource.close();
+    setTimeout(subscribeToSessionChanges, 5000);
+  };
 }
 
 async function initSync(){
   subscribeToSessionChanges();
-  const remote = await fetchSessionsFromSupabase();
+  const remote = await fetchSessionsFromServer();
   if (!remote) return;
   const local = getStoredSessions();
   Object.keys(remote).forEach(caseNum => {
@@ -2536,16 +2527,11 @@ async function initSync(){
   setStoredSessions(local);
   renderSessionList();
 
-  // If localStorage was empty on startup (new device / cleared browser data),
-  // auto-restore the most recently updated session from Supabase so sessions
-  // survive code updates, browser clears, and device switches without any manual steps.
-  // But skip if the user explicitly requested a new session (consume the flag so it doesn't persist across reloads).
   const wasNewMode = !!localStorage.getItem(SESSION_NEW_MODE_KEY);
   localStorage.removeItem(SESSION_NEW_MODE_KEY);
   if (!currentCaseNumber && !wasNewMode) {
     const allCases = Object.keys(local);
     if (allCases.length > 0) {
-      // Prefer the last-known active case, fall back to most recently updated
       const preferred = getLastCaseNumber();
       const mostRecent = allCases.reduce((best, cur) =>
         new Date(local[cur].updatedAt || 0) > new Date(local[best].updatedAt || 0) ? cur : best
