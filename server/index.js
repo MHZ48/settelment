@@ -1,6 +1,7 @@
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 const express = require('express');
 const cors    = require('cors');
+const path    = require('path');
 const db      = require('./db');
 
 const app     = express();
@@ -9,6 +10,10 @@ const API_KEY = process.env.API_KEY || '';
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
+
+// Serve the app
+app.use(express.static(path.join(__dirname, '..')));
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, '..', 'index.html')));
 
 // SSE clients
 const clients = new Set();
