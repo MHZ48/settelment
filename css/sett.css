@@ -125,22 +125,21 @@ html,body{height:100%;font-family:'Tajawal',sans-serif;direction:rtl;background:
 .resize-handle-col:hover{background:#4a90e2;opacity:1}
 .resizable-header:hover .resize-handle-col{opacity:1}
 #parts-tbl{font-weight:700}
-#parts-tbl td,#parts-tbl th,#repairs-tbl td,#repairs-tbl th,#ctr-tbl td,#ctr-tbl th,
+#parts-tbl,#parts-tbl td,#parts-tbl th,#parts-tbl .tot,#parts-tbl .tot td,#parts-tbl tfoot td,
+#repairs-tbl td,#repairs-tbl th,
+#ctr-tbl,#ctr-tbl td,#ctr-tbl th,#ctr-tbl .tot,#ctr-tbl .tot td,#ctr-tbl tfoot td,#ctr-tbl thead th,
 .p-dcon .dt td,.p-dcon .dt th{background:transparent !important}
-#parts-tbl .tot,#parts-tbl .tot td,#parts-tbl tfoot td,
-#ctr-tbl .tot,#ctr-tbl .tot td,#ctr-tbl tfoot td,
-#ctr-tbl thead th{background:#fff !important}
 #parts-tbl td:hover,#parts-tbl th:hover,#repairs-tbl td:hover,#repairs-tbl th:hover{cursor:default !important}
-#parts-tbl .resize-handle-col{background:#fff}
-#parts-tbl .resize-handle-col:hover{background:#ddd}
+#parts-tbl .resize-handle-col{background:rgba(0,0,0,0.15)}
+#parts-tbl .resize-handle-col:hover{background:rgba(0,0,0,0.35)}
 
 /* ROW RESIZE HANDLES */
 .resizable-row{position:relative}
 .resize-handle-row{position:absolute;left:0;right:0;bottom:0;height:6px;background:#ddd;cursor:row-resize;opacity:0.7;z-index:10}
 .resize-handle-row:hover{background:#4a90e2;opacity:1}
 .resizable-row:hover .resize-handle-row{opacity:1}
-#parts-tbl .resize-handle-row{background:#fff}
-#parts-tbl .resize-handle-row:hover{background:#ddd}
+#parts-tbl .resize-handle-row{background:rgba(0,0,0,0.15)}
+#parts-tbl .resize-handle-row:hover{background:rgba(0,0,0,0.35)}
 
 /* PAGE */
 #page{background:#fff;width:100%;max-width:860px;height:1100px;box-shadow:0 4px 24px rgba(0,0,0,.45);border-radius:0 0 4px 4px;position:relative;overflow:hidden;display:flex;flex-direction:column}
@@ -173,6 +172,8 @@ html,body{height:100%;font-family:'Tajawal',sans-serif;direction:rtl;background:
 .dt td{border:1px solid #777;padding:4px 7px;text-align:center;vertical-align:middle}
 .dt td.lh{background:#fff;font-weight:700;color:#cc0000;text-decoration:none;text-align:right}
 .dt .tot td{border-top:2px solid #555;font-weight:700;background:#fff}
+#parts-tbl td,#parts-tbl th,#parts-tbl .tot td,#parts-tbl tfoot td,
+#ctr-tbl td,#ctr-tbl th,#ctr-tbl .tot td,#ctr-tbl tfoot td,#ctr-tbl thead th{background:transparent !important}
 .rl{color:#cc0000;font-weight:700;text-decoration:none}
 .bl{color:#000;font-weight:700}
 .brb{border:2px solid #7a5c2a;padding:7px 11px;margin:4px 0}

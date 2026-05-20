@@ -1935,6 +1935,7 @@ function createOrSwitchSession(caseNum){
     if (sessions[caseNum]?.state) applyAppState(sessions[caseNum].state);
     return;
   }
+  saveSessionNow();
   localStorage.removeItem(SESSION_NEW_MODE_KEY);
 
   const sessions = getStoredSessions();
@@ -2014,11 +2015,9 @@ function loadLastSession(){
   const lastCase = getLastCaseNumber();
   if (lastCase) {
     const sessions = getStoredSessions();
-    if (sessions[lastCase]) {
+    if (sessions[lastCase] && sessions[lastCase].state) {
       currentCaseNumber = lastCase;
-      if (sessions[lastCase].state) {
-        applyAppState(sessions[lastCase].state);
-      }
+      applyAppState(sessions[lastCase].state);
       return;
     }
   }
@@ -2041,6 +2040,7 @@ function switchSession(caseNum){
 }
 
 function startNewSession(){
+  saveSessionNow();
   currentCaseNumber = '';
   setLastCaseNumber('');
   localStorage.setItem(SESSION_NEW_MODE_KEY, '1');
@@ -2296,6 +2296,11 @@ function getAppState(){
   state.priors = JSON.parse(JSON.stringify(priors));
   state.afters = JSON.parse(JSON.stringify(afters));
   state.claimPrices = JSON.parse(JSON.stringify(claimPrices));
+  // Save accordion open/closed state for each section
+  state.sections = {};
+  document.querySelectorAll('#form .st').forEach((st, i) => {
+    state.sections[i] = st.classList.contains('col');
+  });
   return state;
 }
 
@@ -2335,6 +2340,15 @@ function applyAppState(state){
   if (typeof updateRespDisplay === 'function') updateRespDisplay(document.getElementById('f-resp')?.value || '');
   if (typeof calc === 'function') calc();
   if (typeof calcBrk === 'function') calcBrk();
+  // Restore accordion open/closed state
+  if (state.sections) {
+    document.querySelectorAll('#form .st').forEach((st, i) => {
+      const collapsed = !!state.sections[i];
+      const sb = st.nextElementSibling;
+      st.classList.toggle('col', collapsed);
+      if (sb) sb.classList.toggle('hid', collapsed);
+    });
+  }
   checkOverflow();
 }
 
@@ -2525,17 +2539,22 @@ async function initSync(){
   // If localStorage was empty on startup (new device / cleared browser data),
   // auto-restore the most recently updated session from Supabase so sessions
   // survive code updates, browser clears, and device switches without any manual steps.
-  // But skip if the user explicitly requested a new session.
-  if (!currentCaseNumber && !localStorage.getItem(SESSION_NEW_MODE_KEY)) {
+  // But skip if the user explicitly requested a new session (consume the flag so it doesn't persist across reloads).
+  const wasNewMode = !!localStorage.getItem(SESSION_NEW_MODE_KEY);
+  localStorage.removeItem(SESSION_NEW_MODE_KEY);
+  if (!currentCaseNumber && !wasNewMode) {
     const allCases = Object.keys(local);
     if (allCases.length > 0) {
+      // Prefer the last-known active case, fall back to most recently updated
+      const preferred = getLastCaseNumber();
       const mostRecent = allCases.reduce((best, cur) =>
         new Date(local[cur].updatedAt || 0) > new Date(local[best].updatedAt || 0) ? cur : best
       );
-      if (local[mostRecent] && local[mostRecent].state) {
-        currentCaseNumber = mostRecent;
-        setLastCaseNumber(mostRecent);
-        applyAppState(local[mostRecent].state);
+      const target = (preferred && local[preferred]?.state) ? preferred : mostRecent;
+      if (local[target] && local[target].state) {
+        currentCaseNumber = target;
+        setLastCaseNumber(target);
+        applyAppState(local[target].state);
       }
     }
   }
