@@ -1,0 +1,137 @@
+{
+  "version": 1,
+  "exportedAt": "2026-05-23T08:53:15.682Z",
+  "sessions": {
+    "2026/5844": {
+      "caseNumber": "2026/5844",
+      "title": "قضية 2026/5844",
+      "createdAt": "2026-05-19T13:42:37.011Z",
+      "updatedAt": "2026-05-19T14:29:55.619Z",
+      "state": {
+        "fields": {
+          "f-rdate": "19/05/2026",
+          "f-rdate-picker": "",
+          "f-idate": "29/04/2026",
+          "f-idate-picker": "",
+          "f-anum-num": "13680",
+          "f-anum-yr": "2026",
+          "f-cnum-num": "5844",
+          "f-cnum-yr": "2026",
+          "f-clm": "انس مروان عبد العزيز الجمره",
+          "f-ccar": "50-35757",
+          "f-pol": "1011041127",
+          "f-vnum": "42-59138",
+          "f-vtype": "هونداي",
+          "f-vcls": "كونا",
+          "f-vmod-display": "2020",
+          "f-vcolor": "",
+          "f-vreg": "خصوصي",
+          "f-darea-display": "النقاط: 2+3+4+5+6",
+          "f-darea": "2+3+4+5+6",
+          "f-ddesc": "فحص عجل امامي يمين وفحص كوشوك خلفي يمين",
+          "f-resp": "100",
+          "new-repair-inp": "",
+          "psearch": "",
+          "f-wages": "350",
+          "f-depr": "200",
+          "f-depr-reason": "",
+          "f-ed": "4",
+          "f-er": "10",
+          "f-vpre": "13500",
+          "f-vpost": "12770",
+          "f-disc": "",
+          "f-deprpct": "0"
+        },
+        "dcon": "\n\n      <div class=\"dtit\">تقرير تسوية</div>\n\n      <!-- Section 1 line — gap between \"معلومات الحادث\" and \"التاريخ\" via spaces like original -->\n      <div class=\"ds\" style=\"display:flex;justify-content:space-between;align-items:center\">\n        <span class=\"rl\">معلومات الحادث&nbsp;:</span>\n        <span style=\"display:inline-flex;align-items:center;gap:4px;margin-left:40px\">\n          <span class=\"rl\">التاريخ&nbsp;:</span>\n          <span id=\"d-today-wrap\">\n            <span id=\"d-today\" style=\"font-weight:700;color:#333;cursor:pointer\" title=\"انقر للتعديل\">19/05/2026</span>\n            <input type=\"date\" id=\"d-today-input\" style=\"display:none;font-family:'Tajawal',sans-serif;font-size:12px;border:1px solid #999;border-radius:3px;padding:1px 4px\" onchange=\"applyTodayEdit(this.value)\" onblur=\"hideTodayInput()\">\n          </span>\n        </span>\n      </div>\n\n      <!-- Incident table -->\n      <table class=\"dt\" style=\"font-weight:bold\">\n        <thead><tr>\n          <th>تاريخ الحادث</th><th>رقم الحادث</th><th>رقم القضية</th>\n          <th>اسم المدعي</th><th>رقم السيارة المتسببة</th><th>رقم البوليصة</th>\n        </tr></thead>\n        <tbody><tr>\n          <td id=\"d-date-cell\" style=\"color:#000000;font-weight:700;text-decoration:none\">29/04/2026</td>\n          <td><span class=\"ef sf\" contenteditable=\"true\" id=\"d-anum\" data-f=\"anum\" data-p=\"...\" oninput=\"D('anum',this)\">2026/13680</span></td>\n          <td><span class=\"ef sf\" contenteditable=\"true\" id=\"d-cnum\" data-f=\"cnum\" data-p=\"...\" oninput=\"D('cnum',this)\">2026/5844</span></td>\n          <td><span class=\"ef sf\" contenteditable=\"true\" id=\"d-clm\" data-f=\"clm\" data-p=\"...\" oninput=\"D('clm',this)\">انس مروان عبد العزيز الجمره</span></td>\n          <td style=\"\"><span class=\"ef sf\" contenteditable=\"true\" id=\"d-ccar\" data-f=\"ccar\" data-p=\"xx-xxxxx\" oninput=\"D('ccar',this)\">50-35757</span></td>\n          <td style=\"cursor: row-resize;\"><span class=\"ef sf\" contenteditable=\"true\" id=\"d-pol\" data-f=\"pol\" data-p=\"...\" oninput=\"D('pol',this)\">1011041127</span></td>\n        </tr></tbody>\n      </table>\n\n      <!-- Section 2 -->\n      <div class=\"ds\">مواصفات المركبة المتضررة :</div>\n\n      <!-- Vehicle table — side by side like original file -->\n      <table class=\"dt\" style=\"margin-top:5px;font-weight:bold\">\n        <tbody>\n          <tr>\n            <td class=\"lh\">رقم المركبة المتضررة:</td>\n            <td style=\"\"><span class=\"ef sf\" contenteditable=\"true\" id=\"d-vnum\" data-f=\"vnum\" data-p=\"xx-xxxxx\" oninput=\"D('vnum',this)\">42-59138</span></td>\n            <td class=\"lh\" style=\"\">نوع المركبة :</td>\n            <td style=\"\"><span class=\"ef sf\" contenteditable=\"true\" id=\"d-vtype\" data-f=\"vtype\" data-p=\"...\" oninput=\"D('vtype',this)\">هونداي</span></td>\n            <td class=\"lh\" style=\"cursor: row-resize;\">صنف المركبة :</td>\n            <td><span class=\"ef sf\" contenteditable=\"true\" id=\"d-vcls\" data-f=\"vcls\" data-p=\"...\" oninput=\"D('vcls',this)\">كونا</span></td>\n          </tr>\n          <tr>\n            <td class=\"lh\" style=\"\">موديل المركبة :</td>\n            <td style=\"cursor: row-resize;\"><span class=\"ef sf\" contenteditable=\"true\" id=\"d-vmod\" data-f=\"vmod\" data-p=\"...\" oninput=\"D('vmod',this)\">2020</span></td>\n            <td class=\"lh\" style=\"\">صفة التسجيل:</td>\n            <td style=\"\"><span class=\"ef sf\" contenteditable=\"true\" id=\"d-vreg\" data-f=\"vreg\" data-p=\"...\" oninput=\"D('vreg',this)\">خصوصي</span></td>\n            <td class=\"lh\" style=\"\">لون المركبة :</td>\n            <td><span class=\"ef sf\" contenteditable=\"true\" id=\"d-vcol\" data-f=\"vcol\" data-p=\"...\" oninput=\"D('vcol',this)\">-</span></td>\n          </tr>\n        </tbody>\n      </table>\n\n      <div class=\"brb\" style=\"margin-top:5px\">\n        <div class=\"il\"><span class=\"bl\">مناطق الضرر :&nbsp;&nbsp;</span><span class=\"ef sf\" contenteditable=\"true\" id=\"d-darea\" data-f=\"darea\" data-p=\"نقاط ضرر الحادث الحالي\" oninput=\"D('darea',this);chkConf()\" style=\"min-width:160px;color:#000\">2+3+4+5+6</span></div>\n        <div class=\"il\" id=\"d-ddesc-wrap\" style=\"margin-top: 3px; display: block;\"><span class=\"rl\">الوصف الكتابي :&nbsp;</span><span class=\"ef sf\" contenteditable=\"true\" id=\"d-ddesc\" data-f=\"ddesc\" data-p=\"...\" oninput=\"D('ddesc',this);toggleDdescWrap(this)\" style=\"min-width:140px;color:#cc0000\">فحص عجل امامي يمين وفحص كوشوك خلفي يمين</span></div>\n        <div class=\"il\" style=\"margin-top:5px;font-size:14px\" id=\"d-resp-line\">حدود المسؤولية : <span style=\"color:#cc0000;font-weight:700\">100%</span> من مسؤولية على المركبة المؤمنة لدينا .</div>\n      </div>\n\n      <!-- Section 4 -->\n      <div class=\"ds\">كشف الاضرار : استنادا على صور المخطط الكروكي للحادث:</div>\n      <div class=\"il\"><span class=\"bl\">1) </span><span class=\"rl\">الاصلاحات</span><span style=\"display:inline-block;width:290px\"></span><span class=\"bl\">2) </span><span class=\"rl\">القطع :</span></div>\n\n      <!-- Parts + Repairs side by side -->\n      <div class=\"sbs\" style=\"margin-top:5px;gap:30px\">\n        <div style=\"flex:1;min-width:0\">\n          <table class=\"dt\" id=\"repairs-tbl\">\n            <tbody id=\"repairs-tbody\"><tr><td style=\"text-align: right; font-weight: 700;\">اصلاح جناح خلفي يمين</td></tr><tr><td style=\"text-align: right; font-weight: 700; cursor: row-resize;\">اصلاح باب خلفي يمين</td></tr><tr><td style=\"text-align: right; font-weight: 700; cursor: row-resize;\">اصلاح باب امامي يمين</td></tr><tr><td style=\"text-align: right; font-weight: 700;\">اصلاح جناح امامي يمين</td></tr><tr><td style=\"text-align: right; font-weight: 700;\">اصلاح جنط خلفي يمين</td></tr><tr><td style=\"text-align: right; font-weight: 700; cursor: row-resize;\">اصلاح جنط امامي يمين</td></tr><tr><td style=\"text-align: right; font-weight: 700;\">تركيب القطع</td></tr><tr><td style=\"text-align: right; font-weight: 700;\">دهان مكان الحادث</td></tr></tbody>\n            <tbody><tr><td class=\"il\" style=\"\"><span class=\"rl\">الاجور : </span><span class=\"ef sf\" contenteditable=\"true\" id=\"d-wages\" data-f=\"wages\" data-p=\"0\" oninput=\"D('wages',this);calc()\" style=\"min-width:30px;color:#cc0000\">350</span> <b>دينار</b></td></tr>\n          </tbody></table>\n        </div>\n        <div style=\"flex:1.4;min-width:0\">\n          <div class=\"resize-handle-row\"></div><table class=\"dt\" id=\"parts-tbl\">\n            <thead><tr class=\"resizable-row\"><th class=\"resizable-header\">القطع<div class=\"resize-handle-col\"></div></th><th class=\"resizable-header\" id=\"parts-price-header\" style=\"\">متوسط اسعار<div class=\"resize-handle-col\"></div></th></tr></thead>\n            <tbody id=\"parts-tbody\"><tr>\n      <td style=\"\">سبويلر جناح امامي يمين داير العجل</td>\n      <td style=\"color: rgb(0, 0, 0);\">25</td>\n    </tr><tr>\n      <td style=\"\">سبويلر جناح خلفي يمين داير العجل</td>\n      <td style=\"color: rgb(0, 0, 0);\">25</td>\n    </tr><tr>\n      <td style=\"\">قشرة طمبون خلفي</td>\n      <td style=\"color: rgb(0, 0, 0);\">90</td>\n    </tr><tr>\n      <td style=\"\">طاسات عجل عدد 2</td>\n      <td style=\"color: rgb(0, 0, 0); cursor: row-resize;\">40</td>\n    </tr></tbody>\n            <tfoot>\n              <tr class=\"tot\"><td class=\"rl\" style=\"text-align: right;\">المجموع</td><td><span class=\"rl\" id=\"d-pt\">180</span> <b>دينار</b></td></tr>\n              <tr id=\"d-net-row\" class=\"tot\" style=\"display:none;background:#f0f8f4\"><td class=\"rl\" style=\"text-align:right\">بعد خصم الوكالة <span id=\"d-disc-pct\"></span></td><td><span id=\"d-net\">0</span> <b>دينار</b></td></tr>\n              <tr id=\"d-net2-row\" class=\"tot\" style=\"display:none;background:#fff8e6\"><td class=\"rl\" style=\"text-align:right\">الصافي بعد خصم الاستهلاك <span id=\"d-deprpct-pct\"></span></td><td style=\"font-weight:700\"><span id=\"d-net2\">0</span> <b>دينار</b></td></tr>\n            </tfoot>\n          </table>\n        </div>\n      </div>\n\n      <div class=\"il\" id=\"d-depr-line\" style=\"\"><span class=\"rl\">3) نقصان القيمة : </span><span class=\"ef sf\" contenteditable=\"true\" id=\"d-depr\" data-f=\"depr\" data-p=\"0\" oninput=\"D('depr',this);calc()\" style=\"color:#cc0000\">200</span><span id=\"d-depr-suffix\" style=\"\"> دينار <font color=\"#cc2200\">(الاضرار بسيطه جدا)</font></span><span id=\"d-depr-reason-txt\" style=\"display:none\"></span></div>\n      <div class=\"il\"><span class=\"rl\">4) العطل : </span><span id=\"d-bx\" style=\"text-decoration:none\">4*10</span><span> = </span><span class=\"rl\" id=\"d-bv\" style=\"text-decoration:none\">40</span><span> <b>دينار.</b></span></div>\n\n      <!-- Prior incidents — hidden when empty -->\n      <div id=\"d-prior-sec\" style=\"\">\n        <div class=\"ds\"><span class=\"rl\">5) الحوادث السابقة :</span></div>\n        <div id=\"d-prior-rows\" data-splitblock=\"\"><div class=\"il\">حادث وقع بتاريخ <b>19/05/2024</b> وكانت الاضرار <span class=\"pdmg\">12</span></div><div class=\"il\">حادث وقع بتاريخ <b>11/12/2025</b> وكانت الاضرار <span class=\"pdmg\">7+8+9</span></div></div>\n      </div>\n\n      <!-- After incidents — hidden when empty -->\n      \n\n      <!-- Values -->\n      \n\n      \n\n\n      <!-- Counter claim -->\n      \n      \n      \n      \n\n    <div id=\"d-after-sec\" style=\"display:none\">\n        <div class=\"ds\"><span class=\"rl\">6) الحوادث اللاحقة :</span></div>\n        <div id=\"d-after-rows\" data-splitblock=\"\"></div>\n      </div><div class=\"il\" style=\"margin-top:7px\">\n        <span style=\"font-weight:700\">قيمة المركبة قبل الحادث </span>\n        <span class=\"ef sf\" contenteditable=\"true\" id=\"d-vpre\" data-f=\"vpre\" data-p=\"0\" oninput=\"D('vpre',this);calc()\" style=\"min-width:35px;color:#cc0000\">13500</span>\n        <span style=\"font-weight:700\"> دينار &nbsp; وقيمتها بعد الحادث وقبل الاصلاح هو </span>\n        <span id=\"d-vpost\" style=\"min-width:35px;font-weight:700;color:#cc0000\">12770</span>\n        <span style=\"font-weight:700\"> دينار.</span>\n      </div><div class=\"yb\">\n        <span class=\"rl\" style=\"font-size:15px\">المجموع النهائي :</span>\n        <span style=\"margin:0 6px;color:#555\"> = </span>\n        <span class=\"rl\" id=\"d-rp\" style=\"font-size:16px\">770</span>\n        <span style=\"font-size:14px;color:#333;font-weight:700\"> دينار</span>\n      </div><div id=\"mushtarak-line\" style=\"display:none;margin:4px 0 6px;font-size:13px;font-weight:700;color:#111;text-align:center\">\n        <b>حادث مشترك <span id=\"ml-pct\" style=\"color:#cc0000\"></span>% :&nbsp;<span id=\"ml-val\" style=\"color:#cc0000\"></span> دينار</b>\n      </div><div id=\"taqabul-wrap\" style=\"\"><div class=\"ds taqabul-section\"><span class=\"rl\" style=\"font-size:13.5px\">الادعاء بالتقابل :</span></div><div class=\"il\" style=\"font-size:12.5px\">المطالبة ببدل قيمة القطع المستبدلة المستوجبة الاستبدال وعلى فرض الثبوت حيث تم احتساب القطع :</div><table class=\"dt\" id=\"ctr-tbl\" style=\"margin-top:5px;width:82%;margin-left:auto;margin-right:auto\">\n        <thead><tr><th style=\"width:10%\">الرقم</th><th style=\"width:55%\">اسم القطعة</th><th style=\"width:35%\">قيمة القطع التالفة</th></tr></thead>\n        <tbody id=\"ctr-tbody\"><tr><td>1</td><td>سبويلر جناح امامي يمين داير العجل</td><td>0</td></tr><tr style=\"\"><td>2</td><td>سبويلر جناح خلفي يمين داير العجل</td><td>0</td></tr><tr style=\"\"><td>3</td><td>قشرة طمبون خلفي</td><td>10</td></tr><tr style=\"\"><td>4</td><td>طاسات عجل عدد 2</td><td>0</td></tr></tbody>\n        \n      <tfoot><tr class=\"tot\"><td colspan=\"2\" class=\"rl\" style=\"text-align:right\">المجموع</td><td><span class=\"rl\" id=\"d-ct\">10</span> <b>دينار</b></td></tr></tfoot></table></div>",
+        "parts": [
+          {
+            "name": "سبويلر جناح امامي يمين داير العجل",
+            "sub": "",
+            "subs": [],
+            "price": "25"
+          },
+          {
+            "name": "سبويلر جناح خلفي يمين داير العجل",
+            "sub": "",
+            "subs": [],
+            "price": "25"
+          },
+          {
+            "name": "قشرة طمبون خلفي",
+            "sub": "",
+            "subs": [],
+            "price": "90"
+          },
+          {
+            "name": "طاسات عجل عدد 2",
+            "sub": "",
+            "subs": [],
+            "price": "40"
+          }
+        ],
+        "repairs": [
+          {
+            "name": "اصلاح جناح خلفي يمين"
+          },
+          {
+            "name": "اصلاح باب خلفي يمين"
+          },
+          {
+            "name": "اصلاح باب امامي يمين"
+          },
+          {
+            "name": "اصلاح جناح امامي يمين"
+          },
+          {
+            "name": "اصلاح جنط خلفي يمين"
+          },
+          {
+            "name": "اصلاح جنط امامي يمين"
+          },
+          {
+            "name": "تركيب القطع"
+          },
+          {
+            "name": "دهان مكان الحادث"
+          }
+        ],
+        "priors": [
+          {
+            "date": "2024-05-19",
+            "damage": [
+              12
+            ]
+          },
+          {
+            "date": "2025-12-11",
+            "damage": [
+              7,
+              8,
+              9
+            ]
+          }
+        ],
+        "afters": [],
+        "claimPrices": [
+          null,
+          null,
+          null,
+          0
+        ],
+        "leftInd": 36,
+        "rightInd": 36,
+        "sections": {
+          "0": true,
+          "1": true,
+          "2": true,
+          "3": true,
+          "4": true,
+          "5": true,
+          "6": true,
+          "7": true,
+          "8": false
+        }
+      }
+    }
+  }
+}

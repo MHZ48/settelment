@@ -27,7 +27,7 @@ const HEADERS = {
 // ═══════════════════════════════════════════
 // SESSION SYNC — CUSTOM BACKEND
 // ═══════════════════════════════════════════
-const SERVER_URL = 'http://localhost:3001'; // ← غيّر لـ IP السيرفر عند النشر
+const SERVER_URL = ''; // relative URL — works with localhost, IP, or any hostname
 const SERVER_KEY = 'sett-secret-2024';      // ← يجب أن يطابق API_KEY في .env
 const S_HEADERS  = { 'Content-Type': 'application/json', 'x-api-key': SERVER_KEY };
 
@@ -357,6 +357,15 @@ function _doCheckOverflow() {
     doc.querySelectorAll('[data-split-hidden]').forEach(el => {
       el.removeAttribute('data-split-hidden');
       el.style.removeProperty('display');
+    });
+    // 3. Move any remaining non-clone elements from extra pages back to firstDcon
+    doc.querySelectorAll('.page-wrap').forEach((wrap, idx) => {
+      if (idx === 0) return;
+      const pdc = wrap.querySelector('.p-dcon');
+      if (!pdc) return;
+      [...pdc.children].forEach(child => {
+        if (!child.hasAttribute('data-split-clone')) firstDcon.appendChild(child);
+      });
     });
 
     const dcons = [firstDcon, ...doc.querySelectorAll('.p-dcon')];
@@ -2004,7 +2013,11 @@ function scheduleSessionSave(){
     if (!caseNum) return;
     const sessions = getStoredSessions();
     sessions[caseNum] = sessions[caseNum] || createSessionObject(caseNum);
-    sessions[caseNum].state = getAppState();
+    const newState = getAppState();
+    const oldStateStr = JSON.stringify(sessions[caseNum].state || {});
+    const newStateStr = JSON.stringify(newState);
+    if (oldStateStr === newStateStr) { setSyncStatus('saved'); return; }
+    sessions[caseNum].state = newState;
     sessions[caseNum].updatedAt = new Date().toISOString();
     setStoredSessions(sessions);
     lastLocalSaveAt = sessions[caseNum].updatedAt;
@@ -2042,7 +2055,10 @@ function closeSessionManager(){
 
 function switchSession(caseNum){
   if (!caseNum) return;
-  createOrSwitchSession(caseNum);
+  try { createOrSwitchSession(caseNum); } catch(e) { console.error('switchSession:', e); }
+  currentCaseNumber = caseNum;
+  setLastCaseNumber(caseNum);
+  renderSessionList();
   closeSessionManager();
 }
 
@@ -2181,7 +2197,7 @@ function renderSessionList(){
   if (!list) return;
   const sessions = getStoredSessions();
   const query = getSessionSearchQuery();
-  const cases = Object.keys(sessions).sort((a,b) => (sessions[b].updatedAt||0) - (sessions[a].updatedAt||0)).filter(caseNum => {
+  const cases = Object.keys(sessions).sort((a,b) => new Date(sessions[b].updatedAt||0) - new Date(sessions[a].updatedAt||0)).filter(caseNum => {
     if (!query) return true;
     const session = sessions[caseNum];
     return caseNum.toLowerCase().includes(query) || (session.title || '').toLowerCase().includes(query);
