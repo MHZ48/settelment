@@ -2197,7 +2197,7 @@ function renderSessionList(){
   if (!list) return;
   const sessions = getStoredSessions();
   const query = getSessionSearchQuery();
-  const cases = Object.keys(sessions).sort((a,b) => new Date(sessions[b].updatedAt||0) - new Date(sessions[a].updatedAt||0)).filter(caseNum => {
+  const cases = Object.keys(sessions).sort((a,b) => new Date(sessions[b].createdAt||0) - new Date(sessions[a].createdAt||0)).filter(caseNum => {
     if (!query) return true;
     const session = sessions[caseNum];
     return caseNum.toLowerCase().includes(query) || (session.title || '').toLowerCase().includes(query);
@@ -2237,7 +2237,7 @@ function renderSessionList(){
     item.addEventListener('click', () => switchSession(caseNum));
 
     const info = document.createElement('div');
-    info.innerHTML = `<strong>${session.title}</strong><br><small>آخر تحديث: ${formatSessionDate(session.updatedAt)}</small>`;
+    info.innerHTML = `<strong>${session.title}</strong><br><small>تاريخ الإنشاء: ${formatSessionDate(session.createdAt)}</small>`;
 
     const footer = document.createElement('div');
     footer.className = 'session-card-footer';
