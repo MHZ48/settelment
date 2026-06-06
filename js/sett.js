@@ -91,12 +91,25 @@ Promise.all([
   if (partsData) {
     PDB = partsData.map(row => row.part_name);
   }
+  localStorage.removeItem('CUSTOM_PARTS');
 
   console.log("✅ تم تحميل جميع البيانات من Supabase بنجاح ورطها بالتطبيق!");
 })
 .catch(error => console.error('❌ حدث خطأ أثناء جلب البيانات من Supabase:', error));
 
-
+function _saveCustomCarLocal(make, model) {
+  const data = JSON.parse(localStorage.getItem('CUSTOM_CAR_DATA') || '{}');
+  if (!data[make]) data[make] = [];
+  if (model && !data[make].includes(model)) data[make].push(model);
+  localStorage.setItem('CUSTOM_CAR_DATA', JSON.stringify(data));
+}
+function _saveCustomPartLocal(partName) {
+  const parts = JSON.parse(localStorage.getItem('CUSTOM_PARTS') || '[]');
+  if (!parts.includes(partName)) {
+    parts.push(partName);
+    localStorage.setItem('CUSTOM_PARTS', JSON.stringify(parts));
+  }
+}
 
 // دالة موحدة لإضافة بيانات جديدة إلى قاعدة البيانات
 async function insertToDB(tableName, record) {
@@ -176,8 +189,8 @@ async function insertAndReturnDB(tableName, record) {
 // إضافة ماركة جديدة (تويوتا، كيا...)
 async function checkNewMake(makeName) {
   if (!makeName || CAR_DATA[makeName]) return;
-  if (!confirm(`نوع المركبة "${makeName}" غير موجود. هل تريد إضافته؟`)) return;
   CAR_DATA[makeName] = [];
+  _saveCustomCarLocal(makeName, null);
   fillMakesDatalist();
   const inserted = await insertAndReturnDB('car_makes', { make_name: makeName });
   if (inserted) {
@@ -193,8 +206,12 @@ async function checkNewModel(modelName) {
   if (!CAR_DATA[currentMake]) CAR_DATA[currentMake] = [];
   S('vcls', modelName);
   if (CAR_DATA[currentMake].includes(modelName)) return;
-  if (!confirm(`صنف المركبة "${modelName}" غير موجود تحت نوع "${currentMake}". هل تريد إضافته؟`)) return;
   let makeId = MAKE_NAME_TO_ID[currentMake];
+  if (!makeId) {
+    // لو النوع أُضيف لتوّه وما اكتمل الـ async، ننتظر قليلاً ثم نحاول مجدداً
+    await new Promise(r => setTimeout(r, 800));
+    makeId = MAKE_NAME_TO_ID[currentMake];
+  }
   if (!makeId) {
     const rows = await fetch(`${SUPABASE_URL_BASE}/car_makes?make_name=eq.${encodeURIComponent(currentMake)}&select=id`, { headers: HEADERS }).then(r => r.json());
     if (rows && rows[0]) {
@@ -203,26 +220,15 @@ async function checkNewModel(modelName) {
     }
   }
   if (!makeId) return;
-  const inserted = await insertAndReturnDB('car_models', { make_id: makeId, model_name: modelName });
-  if (inserted) {
-    CAR_DATA[currentMake].push(modelName);
-    onMakeInput(currentMake);
-  }
+  CAR_DATA[currentMake].push(modelName);
+  _saveCustomCarLocal(currentMake, modelName);
+  onMakeInput(currentMake);
+  await insertAndReturnDB('car_models', { make_id: makeId, model_name: modelName });
 }
 async function checkNewPart(partName) {
-  if (!partName) return;
-  
-  if (!PDB.includes(partName)) {
-    const confirmAdd = confirm(`القطعة "${partName}" جديدة. هل تريد حفظها في النظام لتظهر في المرات القادمة؟`);
-    if (confirmAdd) {
-      const success = await insertToDB('parts', { part_name: partName, default_price: 0 });
-      if (success) {
-        PDB.push(partName); // تحديث المصفوفة محلياً
-      }
-    }
-  }
-
-  
+  if (!partName || PDB.includes(partName)) return;
+  PDB.push(partName);
+  await insertToDB('parts', { part_name: partName, default_price: 0 });
 }
 
 
@@ -404,6 +410,45 @@ function _doCheckOverflow() {
             dcon.removeChild(candidate);
             nextDcon.insertBefore(candidate, nextDcon.firstChild);
             break;
+          }
+        }
+
+        // ── Phase 2b: merge split-table rows back if space allows ────────
+        // Phase 2 stops at clones. This pass tries to unhide rows in the
+        // source table and remove their counterparts from the continuation
+        // clone — effectively undoing row-level splits that are no longer needed.
+        const cloneTables = [...nextDcon.querySelectorAll(':scope > [data-split-clone][data-split-src]')];
+        for (const clone of cloneTables) {
+          const srcId = clone.getAttribute('data-split-src');
+          const srcTable = document.getElementById(srcId);
+          if (!srcTable) continue;
+          const srcTbody = srcTable.querySelector('tbody') || srcTable;
+          const cloneBody = clone.querySelector('tbody') || clone;
+          const hiddenRows = [...srcTbody.querySelectorAll(':scope > [data-split-hidden]')];
+          const cloneRows  = [...cloneBody.querySelectorAll(':scope > tr')];
+          let merged = 0;
+          for (let k = 0; k < hiddenRows.length; k++) {
+            const hr = hiddenRows[k];
+            const cr = cloneRows[k];
+            if (!cr) break;
+            hr.removeAttribute('data-split-hidden');
+            hr.style.removeProperty('display');
+            if (_dconOverflows(dcon)) {
+              hr.setAttribute('data-split-hidden', '');
+              hr.style.display = 'none';
+              break;
+            }
+            cr.remove();
+            merged++;
+          }
+          // If all clone rows were merged back, return tfoot and remove clone
+          if (merged === hiddenRows.length) {
+            clone.querySelectorAll('[data-split-tfoot-src]').forEach(tf => {
+              tf.removeAttribute('data-split-tfoot-src');
+              srcTable.appendChild(tf);
+            });
+            if (srcId.startsWith('_split_tbl_')) srcTable.removeAttribute('id');
+            clone.remove();
           }
         }
       }
@@ -755,7 +800,7 @@ function buildDmgGrid(){
   ['dmg-modal-grid','dmg-inline-grid'].forEach(gid=>{
     const grid=document.getElementById(gid);
     if(!grid) return;
-    for(let i=1;i<=20;i++){
+    for(let i=0;i<=20;i++){
       const btn=document.createElement('button');
       btn.type='button';
       btn.className='yr-btn';
@@ -908,17 +953,34 @@ function applyFontSize(){
   const sz=parseInt(document.getElementById('tb-sz').value)||13;
   restoreRange();
   const sel=window.getSelection();
-  if(sel&&sel.rangeCount>0&&!sel.isCollapsed){
-    document.execCommand('fontSize',false,'7');
-    document.getElementById('dcon').querySelectorAll('font[size="7"]').forEach(el=>{
-      const sp=document.createElement('span');
-      sp.style.fontSize=sz+'px';
-      sp.innerHTML=el.innerHTML;
-      el.replaceWith(sp);
-    });
-  } else {
-    document.getElementById('dcon').style.fontSize=sz+'px';
-  }
+  if(!sel||sel.rangeCount===0||sel.isCollapsed) return;
+  document.execCommand('fontSize',false,'7');
+  document.getElementById('dcon').querySelectorAll('font[size="7"]').forEach(el=>{
+    const sp=document.createElement('span');
+    sp.style.fontSize=sz+'px';
+    sp.innerHTML=el.innerHTML;
+    el.replaceWith(sp);
+  });
+  saveRange();
+}
+function stepFontSize(delta){
+  restoreRange();
+  const sel=window.getSelection();
+  if(!sel||sel.rangeCount===0||sel.isCollapsed) return;
+  // قراءة حجم الخط الحالي للتحديد
+  const range=sel.getRangeAt(0);
+  const ancestor=range.commonAncestorContainer;
+  const el=ancestor.nodeType===3?ancestor.parentElement:ancestor;
+  const current=parseFloat(window.getComputedStyle(el).fontSize)||13;
+  const sz=Math.max(6,Math.min(96,Math.round(current)+delta));
+  document.getElementById('tb-sz').value=sz;
+  document.execCommand('fontSize',false,'7');
+  document.getElementById('dcon').querySelectorAll('font[size="7"]').forEach(f=>{
+    const sp=document.createElement('span');
+    sp.style.fontSize=sz+'px';
+    sp.innerHTML=f.innerHTML;
+    f.replaceWith(sp);
+  });
   saveRange();
 }
 
@@ -1056,7 +1118,7 @@ function filterMake(q){
   const makes=Object.keys(CAR_DATA).sort(arSort);
   fm=qt?makes.filter(m=>arMatch(m,qt)):makes;
   document.getElementById('make-list').innerHTML=fm.slice(0,14).map((m,idx)=>`<div class="popt" onmousedown="event.preventDefault()" onclick="selMake(fm[${idx}])">${m}</div>`).join('');
-  document.getElementById('make-list').classList.toggle('vis',qt.length>0&&fm.length>0);
+  document.getElementById('make-list').classList.toggle('vis',fm.length>0);
 }
 function selMake(n){
   document.getElementById('f-vtype').value=n;
@@ -1077,7 +1139,7 @@ function filterModel(q){
   const models=(CAR_DATA[currentMake]||[]).slice().sort(arSort);
   fml=qt?models.filter(m=>arMatch(m,qt)):models;
   document.getElementById('model-list').innerHTML=fml.slice(0,14).map((m,idx)=>`<div class="popt" onmousedown="event.preventDefault()" onclick="selModel(fml[${idx}])">${m}</div>`).join('');
-  document.getElementById('model-list').classList.toggle('vis',qt.length>0&&fml.length>0);
+  document.getElementById('model-list').classList.toggle('vis',fml.length>0);
 }
 function selModel(n){document.getElementById('f-vcls').value=n;S('vcls',n);document.getElementById('model-list').classList.remove('vis');}
 
@@ -1122,24 +1184,24 @@ function renderParts(){
       return `
       <div style="display:grid;grid-template-columns:1fr 60px 28px 22px;gap:3px;align-items:center;margin-top:3px">
         <div style="display:flex;gap:3px;align-items:center">
-          <span style="color:${sh?'#cc0000':'var(--grn3)'};font-size:11px;font-weight:700;flex-shrink:0">+</span>
+          <span style="color:${sh?'#cc0000':'var(--txt)'};font-size:11px;font-weight:700;flex-shrink:0">+</span>
           <div style="position:relative;flex:1">
           <input id="sub-inp-${i}-${j}" type="text" value="${escH(s.name)}" placeholder="قطعة تابعة"
             oninput="parts[${i}].subs[${j}].name=this.value;filterSub(this.value,${i},${j});updPTbl();updCTbl()"
             onfocus="filterSub(this.value,${i},${j})"
-            style="width:100%;background:var(--inp);border:1px dashed ${sh?'#8b6000':'var(--grn2)'};border-radius:4px;color:${sh?'#cc0000':'var(--grn3)'};font-family:'Tajawal',sans-serif;font-size:9px;padding:3px 6px">
+            style="width:100%;background:var(--inp);border:1px dashed ${sh?'#8b6000':'var(--brd)'};border-radius:4px;color:${sh?'#cc0000':'var(--txt)'};font-family:'Tajawal',sans-serif;font-size:11px;font-weight:700;padding:3px 6px">
           <div id="spl-${i}-${j}" style="display:none;position:absolute;top:100%;right:0;left:0;z-index:50;max-height:120px;overflow-y:auto;border:1px solid var(--brd);border-radius:5px;background:var(--inp)"></div>
         </div>
         </div>
         <div style="text-align:center">
           <input type="number" value="${s.price||''}" placeholder="0" min="0"
             onchange="parts[${i}].subs[${j}].price=this.value;claimPrices[${i}]=null;renderParts();updPTbl();calc()" oninput="parts[${i}].subs[${j}].price=this.value;claimPrices[${i}]=null;updPTbl();calc()"
-            style="background:var(--inp);border:1px solid ${sh?'#8b6000':'var(--grn)'};border-radius:4px;color:${sh?'#cc0000':'var(--grn3)'};font-family:'Tajawal',sans-serif;font-size:9px;padding:3px 5px;width:100%">
-          ${sh&&sp?`<div style="font-size:8px;color:#cc0000;font-weight:700;margin-top:1px">= ${seff%1===0?seff.toFixed(0):seff.toFixed(1)}</div>`:''}
+            style="background:var(--inp);border:1px solid ${sh?'#8b6000':'var(--brd)'};border-radius:4px;color:${sh?'#cc0000':'var(--txt)'};font-family:'Tajawal',sans-serif;font-size:11px;font-weight:700;padding:3px 5px;width:100%">
+          ${sh&&sp?`<div style="font-size:10px;color:#cc0000;font-weight:700;margin-top:1px">= ${seff%1===0?seff.toFixed(0):seff.toFixed(1)}</div>`:''}
         </div>
         <button onclick="toggleSubHalf(${i},${j})" title="50% من القطعة التابعة"
-          style="padding:2px 3px;border-radius:4px;border:1px solid ${sh?'#cc0000':'var(--brd)'};background:${sh?'#3d2e00':'var(--inp)'};color:${sh?'#cc0000':'var(--dim)'};font-family:'Tajawal',sans-serif;font-size:9px;font-weight:700;cursor:pointer;width:100%;line-height:1.2">½</button>
-        <button class="bsm bdel" style="padding:2px 5px;font-size:10px" onclick="remSub(${i},${j})">×</button>
+          style="padding:2px 3px;border-radius:4px;border:1px solid ${sh?'#cc0000':'var(--brd)'};background:${sh?'#3d2e00':'var(--inp)'};color:${sh?'#cc0000':'var(--dim)'};font-family:'Tajawal',sans-serif;font-size:11px;font-weight:700;cursor:pointer;width:100%;line-height:1.2">½</button>
+        <button class="bsm bdel" style="padding:2px 5px;font-size:11px" onclick="remSub(${i},${j})">×</button>
       </div>`;
     }).join('');
     const is50=!!p.half;
@@ -1148,19 +1210,19 @@ function renderParts(){
       <div style="display:grid;grid-template-columns:1fr 68px 36px 24px;gap:4px;align-items:start">
         <input type="text" value="${escH(p.name)}" placeholder="اسم القطعة"
           oninput="parts[${i}].name=this.value;updPTbl()"
-          style="background:var(--inp);border:1px solid var(--brd);border-radius:4px;color:var(--txt);font-family:'Tajawal',sans-serif;font-size:10px;padding:4px 6px;width:100%;font-weight:700">
+          style="background:var(--inp);border:1px solid var(--brd);border-radius:4px;color:var(--txt);font-family:'Tajawal',sans-serif;font-size:12px;padding:4px 6px;width:100%;font-weight:700">
         <div style="text-align:center">
           <input type="number" value="${escH(p.price)}" placeholder="السعر"
             onchange="parts[${i}].price=this.value;claimPrices[${i}]=null;renderParts();updPTbl();calc()" oninput="parts[${i}].price=this.value;claimPrices[${i}]=null;updPTbl();calc()" min="0"
-            style="background:var(--inp);border:1px solid var(--brd);border-radius:4px;color:var(--txt);font-family:'Tajawal',sans-serif;font-size:10px;padding:4px 6px;width:100%">
-          ${p.subs.length||is50?`<div style="font-size:9px;margin-top:2px;font-weight:700;${is50?'color:#cc0000':'color:var(--grn3)'}">= ${effectiveTotal%1===0?effectiveTotal.toFixed(0):effectiveTotal.toFixed(1)}</div>`:''}
+            style="background:var(--inp);border:1px solid var(--brd);border-radius:4px;color:var(--txt);font-family:'Tajawal',sans-serif;font-size:12px;padding:4px 6px;width:100%">
+          ${p.subs.length||is50?`<div style="font-size:11px;margin-top:2px;font-weight:700;${is50?'color:#cc0000':'color:var(--grn3)'}">= ${effectiveTotal%1===0?effectiveTotal.toFixed(0):effectiveTotal.toFixed(1)}</div>`:''}
         </div>
         <button onclick="toggleHalf(${i})" title="50% من القطعة"
-          style="padding:3px 4px;border-radius:4px;border:1px solid ${is50?'#cc0000':'var(--brd)'};background:${is50?'#3d2e00':'var(--inp)'};color:${is50?'#cc0000':'var(--dim)'};font-family:'Tajawal',sans-serif;font-size:9px;font-weight:700;cursor:pointer;transition:all .15s;width:100%;height:100%">½</button>
+          style="padding:3px 4px;border-radius:4px;border:1px solid ${is50?'#cc0000':'var(--brd)'};background:${is50?'#3d2e00':'var(--inp)'};color:${is50?'#cc0000':'var(--dim)'};font-family:'Tajawal',sans-serif;font-size:11px;font-weight:700;cursor:pointer;transition:all .15s;width:100%;height:100%">½</button>
         <button class="bsm bdel" onclick="remP(${i})">✕</button>
       </div>
       ${subsHtml}
-      <button class="bsm badd" style="margin-top:5px;font-size:9px;padding:2px 7px" onclick="addSub(${i})">+ تابعة</button>
+      <button class="bsm badd" style="margin-top:5px;font-size:11px;padding:2px 7px" onclick="addSub(${i})">+ تابعة</button>
     </div>`;
   }).join('');
 }
@@ -1267,7 +1329,8 @@ function updCTbl(){
     },0);
     return base+subsTotal;
   }
-  document.getElementById('ctr-tbody').innerHTML=parts.map((p,i)=>{
+  const _ctb=document.getElementById('ctr-tbody');
+  if(_ctb) _ctb.innerHTML=parts.map((p,i)=>{
     const auto=calcClaimPrice(claimBase(p));
     const val=claimPrices[i]!==null?claimPrices[i]:auto;
     return `<tr><td>${i+1}</td><td>${getFullNameHTML(p)}</td><td>${parseFloat(val)%1===0?parseFloat(val).toFixed(0):parseFloat(val).toFixed(1)}</td></tr>`;
@@ -1276,7 +1339,8 @@ function updCTbl(){
     const auto=calcClaimPrice(claimBase(p));
     return a+(claimPrices[i]!==null?parseFloat(claimPrices[i])||0:auto);
   },0);
-  document.getElementById('d-ct').textContent=s%1===0?s.toFixed(0):s.toFixed(1);
+  const _dct=document.getElementById('d-ct');
+  if(_dct) _dct.textContent=s%1===0?s.toFixed(0):s.toFixed(1);
   const _taq=document.getElementById('taqabul-wrap');
   if(_taq) _taq.style.display=parts.length===0?'none':'';
 
@@ -1327,7 +1391,8 @@ function updCTblFromInput(){
     },0);
     return base+subsTotal;
   }
-  document.getElementById('ctr-tbody').innerHTML=parts.map((p,i)=>{
+  const _ctb2=document.getElementById('ctr-tbody');
+  if(_ctb2) _ctb2.innerHTML=parts.map((p,i)=>{
     const auto=calcClaimPrice(claimBase3(p));
     const val=claimPrices[i]!==null?claimPrices[i]:auto;
     return `<tr><td>${i+1}</td><td>${getFullNameHTML(p)}</td><td>${parseFloat(val)%1===0?parseFloat(val).toFixed(0):parseFloat(val).toFixed(1)}</td></tr>`;
@@ -1336,8 +1401,10 @@ function updCTblFromInput(){
     const auto=calcClaimPrice(claimBase3(p));
     return a+(claimPrices[i]!==null?parseFloat(claimPrices[i])||0:auto);
   },0);
-  document.getElementById('d-ct').textContent=s%1===0?s.toFixed(0):s.toFixed(1);
-  document.getElementById('fp-ct').textContent=s%1===0?s.toFixed(0):s.toFixed(1);
+  const _dct2=document.getElementById('d-ct');
+  if(_dct2) _dct2.textContent=s%1===0?s.toFixed(0):s.toFixed(1);
+  const _fpct=document.getElementById('fp-ct');
+  if(_fpct) _fpct.textContent=s%1===0?s.toFixed(0):s.toFixed(1);
   const _taq2=document.getElementById('taqabul-wrap');
   if(_taq2) _taq2.style.display=parts.length===0?'none':'';
 }
@@ -1370,7 +1437,7 @@ function updRepairTbl(){
 
 
 const DEPR_REASONS={
-  prior:'لا شيء (المركبة تعرضت لحوادث سابقة في نفس منطقة الضرر)',
+  prior:'لا شيء (لقد تعرضت المركبة لحوادث سابقة في نفس منقطة الضرر)',
   minor:'لا شيء (الحادث بسيط ولم تتضرر الأجزاء الثابتة بالمركبة)'
 };
 function onDeprChange(){
@@ -1386,25 +1453,36 @@ function onDeprChange(){
 }
 function onDeprReasonChange(){
   const reason=document.getElementById('f-depr-reason').value;
+  const customInput=document.getElementById('f-depr-custom-text');
+  if(customInput) customInput.style.display=reason==='custom'?'':'none';
+  if(reason==='custom') customInput?.focus();
   updateDeprDoc(0, reason);
+}
+function onDeprCustomInput(){
+  updateDeprDoc(0, 'custom');
 }
 function updateDeprDoc(val, reason){
   const span=document.getElementById('d-depr');
   const suffix=document.getElementById('d-depr-suffix');
   const rtxt=document.getElementById('d-depr-reason-txt');
   const line=document.getElementById('d-depr-line');
-  if(reason && DEPR_REASONS[reason]){
+  const customTxt=reason==='custom'
+    ?(document.getElementById('f-depr-custom-text')?.value||'').trim()
+    :null;
+  const resolvedTxt=reason==='custom'
+    ?(customTxt?'لا شيء ('+customTxt+')':'')
+    :DEPR_REASONS[reason];
+  if(reason && resolvedTxt){
     line.style.display='';
     span.textContent='';
     span.innerHTML='';
     span.style.display='none';
     suffix.style.display='none';
     rtxt.style.display='';
-    const txt=DEPR_REASONS[reason];
-    const pIdx=txt.indexOf('(');
+    const pIdx=resolvedTxt.indexOf('(');
     rtxt.innerHTML=pIdx>-1
-      ?escH(txt.slice(0,pIdx))+'<span style="color:#cc0000">'+escH(txt.slice(pIdx))+'</span>'
-      :escH(txt);
+      ?escH(resolvedTxt.slice(0,pIdx))+'<span style="color:#cc0000">'+escH(resolvedTxt.slice(pIdx))+'</span>'
+      :escH(resolvedTxt);
   } else if(val){
     line.style.display='';
     span.style.display='';
@@ -1561,7 +1639,7 @@ function renderPriors(){
       p.damage=p.damage.split(/[+,،\s]+/).map(x=>parseInt(x)).filter(n=>!isNaN(n));
     }
     const dmgLabel=p.damage&&p.damage.length?'النقاط: '+p.damage.join('+'):'اختر النقاط...';
-    const pts=Array.from({length:20},(_,k)=>k+1);
+    const pts=Array.from({length:21},(_,k)=>k);
     const grid=pts.map(pt=>`
       <button id="prior-pt-${i}-${pt}" type="button"
         class="yr-btn${p.damage&&p.damage.includes(pt)?' sel':''}"
@@ -1579,7 +1657,7 @@ function renderPriors(){
           <span style="font-size:9px;color:var(--grn3)">▼</span>
         </button>
         <div id="prior-popup-${i}" class="inc-popup" style="display:none;position:absolute;right:0;left:0;z-index:200;background:var(--panel);border:1px solid var(--brd);border-radius:6px;padding:8px;box-shadow:0 4px 16px rgba(0,0,0,.5);margin-top:2px">
-          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:6px">${grid}</div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:6px">${grid}</div>
           <button type="button" onclick="clearPriorPts(${i})" style="font-size:9px;padding:2px 8px;border-radius:4px;border:1px solid var(--brd);background:transparent;color:var(--dim);font-family:'Tajawal',sans-serif;cursor:pointer">مسح</button>
         </div>
       </div>
@@ -1638,7 +1716,7 @@ function renderAfters(){
       p.damage=p.damage.split(/[+,،\s]+/).map(x=>parseInt(x)).filter(n=>!isNaN(n));
     }
     const dmgLabel=p.damage&&p.damage.length?'النقاط: '+p.damage.join('+'):'اختر النقاط...';
-    const pts=Array.from({length:20},(_,k)=>k+1);
+    const pts=Array.from({length:21},(_,k)=>k);
     const grid=pts.map(pt=>`
       <button id="after-pt-${i}-${pt}" type="button"
         class="yr-btn${p.damage&&p.damage.includes(pt)?' sel':''}"
@@ -1656,7 +1734,7 @@ function renderAfters(){
           <span style="font-size:9px;color:var(--grn3)">▼</span>
         </button>
         <div id="after-popup-${i}" class="inc-popup" style="display:none;position:absolute;right:0;left:0;z-index:200;background:var(--panel);border:1px solid var(--brd);border-radius:6px;padding:8px;box-shadow:0 4px 16px rgba(0,0,0,.5);margin-top:2px">
-          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:6px">${grid}</div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:6px">${grid}</div>
           <button type="button" onclick="clearAfterPts(${i})" style="font-size:9px;padding:2px 8px;border-radius:4px;border:1px solid var(--brd);background:transparent;color:var(--dim);font-family:'Tajawal',sans-serif;cursor:pointer">مسح</button>
         </div>
       </div>
@@ -1690,6 +1768,7 @@ function saveDoc(){
   const name=(document.getElementById('sv-name').value||'تقرير-التسوية').trim();
   const fmt=document.getElementById('sv-fmt').value;
   document.getElementById('modal').classList.remove('open');
+  saveActiveSession();
   if(fmt==='print'){window.print();return}
 
   // Clone dcon to clean up contenteditable artifacts
@@ -1877,6 +1956,7 @@ function toggleTheme(){
 const SESSION_STORE_KEY = 'SETT_WORKSPACE_SESSIONS';
 const SESSION_ACTIVE_KEY = 'SETT_WORKSPACE_LAST_CASE';
 const SESSION_NEW_MODE_KEY = 'SETT_WORKSPACE_NEW_SESSION';
+const SESSION_DELETED_KEY = 'SETT_WORKSPACE_DELETED';
 let sessionAutoSaveTimer = null;
 let currentCaseNumber = '';
 let lastLocalSaveAt = '';
@@ -1904,6 +1984,13 @@ function getCaseNumber(){
   const num = (document.getElementById('f-cnum-num')?.value || '').trim();
   const yr = (document.getElementById('f-cnum-yr')?.value || '').trim();
   return (num && yr) ? `${yr}/${num}` : '';
+}
+
+function getSessionKey(){
+  const base = getCaseNumber();
+  if (!base) return '';
+  const rdate = (document.getElementById('f-rdate')?.value || '').trim();
+  return rdate ? `${base}@${rdate}` : base;
 }
 
 function getStoredSessions(){
@@ -1935,9 +2022,10 @@ function getActiveSession(){
 }
 
 function createSessionObject(caseNum, title){
+  const displayNum = caseNum.split('@')[0];
   return {
     caseNumber: caseNum,
-    title: title || `قضية ${caseNum}`,
+    title: title || `قضية ${displayNum}`,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     state: getAppState()
@@ -1975,6 +2063,7 @@ function createOrSwitchSession(caseNum){
     renderAfters();
     if (typeof calc === 'function') calc();
     if (typeof calcBrk === 'function') calcBrk();
+    if (typeof updateCnum === 'function') updateCnum();
     if (!existing) {
       sessions[caseNum] = createSessionObject(caseNum, `قضية ${caseNum}`);
       setStoredSessions(sessions);
@@ -1990,18 +2079,33 @@ function createOrSwitchSession(caseNum){
 
 async function saveActiveSession(){
   const caseNum = currentCaseNumber || getLastCaseNumber();
+  const btn = document.getElementById('save-session-btn');
   if (!caseNum) {
-    alert('الرجاء إدخال رقم القضية أولاً.');
+    setSyncStatus('error');
     return;
   }
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ يتم الحفظ...'; }
+  setSyncStatus('saving');
   const sessions = getStoredSessions();
   sessions[caseNum] = sessions[caseNum] || createSessionObject(caseNum);
   sessions[caseNum].state = getAppState();
   sessions[caseNum].updatedAt = new Date().toISOString();
   setStoredSessions(sessions);
-  await upsertSessionToServer(caseNum, sessions[caseNum]);
+  lastLocalSaveAt = sessions[caseNum].updatedAt;
   renderSessionList();
-  alert(`تم حفظ الجلسة: ${caseNum}`);
+  try {
+    await upsertSessionToServer(caseNum, sessions[caseNum]);
+    setSyncStatus('saved');
+    if (btn) { btn.textContent = '✅ محفوظ'; }
+  } catch(e) {
+    console.error('saveActiveSession:', e);
+    setSyncStatus('error');
+    if (btn) { btn.textContent = '❌ فشل الحفظ'; }
+  } finally {
+    setTimeout(() => {
+      if (btn) { btn.disabled = false; btn.textContent = '💾 حفظ الجلسة الحالية'; }
+    }, 2000);
+  }
 }
 
 function scheduleSessionSave(){
@@ -2120,15 +2224,26 @@ function clearAppState(){
 
 function deleteSession(caseNum){
   if (!confirm(`هل تريد حذف جلسة القضية ${caseNum}؟`)) return;
+  clearTimeout(sessionAutoSaveTimer);
+  sessionAutoSaveTimer = null;
   const sessions = getStoredSessions();
   delete sessions[caseNum];
   setStoredSessions(sessions);
-  if (currentCaseNumber === caseNum) currentCaseNumber = '';
+  // سجّل الحذف لمنع السيرفر من إرجاع الجلسة عند المزامنة
+  const deleted = JSON.parse(localStorage.getItem(SESSION_DELETED_KEY) || '{}');
+  deleted[caseNum] = new Date().toISOString();
+  localStorage.setItem(SESSION_DELETED_KEY, JSON.stringify(deleted));
+  if (currentCaseNumber === caseNum) {
+    currentCaseNumber = '';
+    setLastCaseNumber('');
+    clearAppState();
+  }
   renderSessionList();
   removeSessionFromServer(caseNum);
 }
 
 function exportSessionsToFile(){
+  saveSessionNow();
   const sessions = getStoredSessions();
   if (!Object.keys(sessions).length) {
     alert('لا توجد جلسات محفوظة للتصدير.');
@@ -2186,6 +2301,21 @@ function getSessionSearchQuery(){
   return document.getElementById('session-search')?.value.trim().toLowerCase() || '';
 }
 
+function openSessionManager(){
+  saveSessionNow();
+  renderSessionList();
+  document.getElementById('session-overlay')?.classList.add('open');
+  document.getElementById('session-search')?.focus();
+}
+
+function closeSessionManager(){
+  document.getElementById('session-overlay')?.classList.remove('open');
+}
+
+function handleSessionOverlayClick(e){
+  if (e.target === document.getElementById('session-overlay')) closeSessionManager();
+}
+
 function bindSessionSearchInput(){
   const input = document.getElementById('session-search');
   if (!input) return;
@@ -2237,7 +2367,8 @@ function renderSessionList(){
     item.addEventListener('click', () => switchSession(caseNum));
 
     const info = document.createElement('div');
-    info.innerHTML = `<strong>${session.title}</strong><br><small>تاريخ الإنشاء: ${formatSessionDate(session.createdAt)}</small>`;
+    const reportDate = session.state?.fields?.['f-rdate'] || '';
+    info.innerHTML = `<strong>${session.title}</strong><br><small>تاريخ التقرير: ${reportDate || formatSessionDate(session.createdAt)}</small>`;
 
     const footer = document.createElement('div');
     footer.className = 'session-card-footer';
@@ -2248,12 +2379,18 @@ function renderSessionList(){
     openBtn.disabled = currentCaseNumber === caseNum;
     openBtn.addEventListener('click', (e) => { e.stopPropagation(); switchSession(caseNum); });
 
+    const renameBtn = document.createElement('button');
+    renameBtn.className = 'hb hb-b';
+    renameBtn.textContent = '✏ تعديل';
+    renameBtn.addEventListener('click', (e) => { e.stopPropagation(); renameSession(caseNum, info); });
+
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'hb hb-p';
     deleteBtn.textContent = 'حذف';
     deleteBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteSession(caseNum); });
 
     footer.appendChild(openBtn);
+    footer.appendChild(renameBtn);
     footer.appendChild(deleteBtn);
     item.appendChild(info);
     item.appendChild(footer);
@@ -2262,7 +2399,43 @@ function renderSessionList(){
   });
 }
 
+function renameSession(caseNum, infoEl){
+  const sessions = getStoredSessions();
+  const session = sessions[caseNum];
+  if (!session) return;
 
+  const strong = infoEl.querySelector('strong');
+  const small = infoEl.querySelector('small');
+  const currentTitle = session.title || `قضية ${caseNum}`;
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = currentTitle;
+  input.style.cssText = 'width:100%;background:var(--inp);border:1px solid var(--grn);border-radius:4px;color:var(--txt);font-family:\'Tajawal\',sans-serif;font-size:13px;padding:3px 7px;font-weight:700;margin-bottom:4px';
+
+  infoEl.innerHTML = '';
+  infoEl.appendChild(input);
+  if (small) infoEl.appendChild(small);
+  input.focus();
+  input.select();
+
+  function save(){
+    const newTitle = input.value.trim() || currentTitle;
+    sessions[caseNum].title = newTitle;
+    sessions[caseNum].updatedAt = new Date().toISOString();
+    setStoredSessions(sessions);
+    upsertSessionToServer(caseNum, sessions[caseNum]).catch(() => {});
+    renderSessionList();
+  }
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); save(); }
+    if (e.key === 'Escape') renderSessionList();
+    e.stopPropagation();
+  });
+  input.addEventListener('blur', save);
+  input.addEventListener('click', (e) => e.stopPropagation());
+}
 
 function _undoSplitsSync(){
   const doc = document.getElementById('doc');
@@ -2356,17 +2529,17 @@ function applyAppState(state){
   if (typeof updateCnum === 'function') updateCnum();
   if (typeof applyIdate === 'function') applyIdate(document.getElementById('f-idate')?.value || '');
   if (typeof updateRespDisplay === 'function') updateRespDisplay(document.getElementById('f-resp')?.value || '');
+  const _restoredReason=document.getElementById('f-depr-reason')?.value;
+  const _customInp=document.getElementById('f-depr-custom-text');
+  if(_customInp) _customInp.style.display=_restoredReason==='custom'?'':'none';
   if (typeof calc === 'function') calc();
   if (typeof calcBrk === 'function') calcBrk();
-  // Restore accordion open/closed state
-  if (state.sections) {
-    document.querySelectorAll('#form .st').forEach((st, i) => {
-      const collapsed = !!state.sections[i];
-      const sb = st.nextElementSibling;
-      st.classList.toggle('col', collapsed);
-      if (sb) sb.classList.toggle('hid', collapsed);
-    });
-  }
+  // Always collapse all sections when loading a session
+  document.querySelectorAll('#form .st').forEach(st => {
+    const sb = st.nextElementSibling;
+    st.classList.add('col');
+    if (sb) sb.classList.add('hid');
+  });
   checkOverflow();
 }
 
@@ -2377,19 +2550,14 @@ function bindSessionAutosave(){
   });
   document.getElementById('dcon')?.addEventListener('input', scheduleSessionSave);
   
-  document.getElementById('f-cnum-num')?.addEventListener('change', () => {
-    const newCase = getCaseNumber();
-    if (newCase && newCase !== currentCaseNumber) {
-      createOrSwitchSession(newCase);
-    }
-  });
-  
-  document.getElementById('f-cnum-yr')?.addEventListener('change', () => {
-    const newCase = getCaseNumber();
-    if (newCase && newCase !== currentCaseNumber) {
-      createOrSwitchSession(newCase);
-    }
-  });
+  function onCaseKeyChange(){
+    const key = getSessionKey();
+    if (key && key !== currentCaseNumber) createOrSwitchSession(key);
+  }
+
+  document.getElementById('f-cnum-num')?.addEventListener('change', onCaseKeyChange);
+  document.getElementById('f-cnum-yr')?.addEventListener('change', onCaseKeyChange);
+  document.getElementById('f-rdate')?.addEventListener('change', onCaseKeyChange);
 }
 
 function saveSessionNow(useKeepalive = false){
@@ -2458,6 +2626,7 @@ bindSessionAutosave();
 bindSessionSearchInput();
 initColumnResize();
 initDconTableResize();
+let sseSource = null;
 initSync();
 
 // ═══════════════════════════════════════════
@@ -2490,8 +2659,6 @@ async function removeSessionFromServer(caseNum){
   } catch(e) { console.warn('removeSessionFromServer:', e); }
 }
 
-let sseSource = null;
-
 function subscribeToSessionChanges(){
   if (sseSource) sseSource.close();
   sseSource = new EventSource(`${SERVER_URL}/api/sessions/stream?key=${encodeURIComponent(SERVER_KEY)}`);
@@ -2499,6 +2666,9 @@ function subscribeToSessionChanges(){
   sseSource.addEventListener('upsert', e => {
     const nr = JSON.parse(e.data);
     const sessions = getStoredSessions();
+    // تجاهل الجلسات المحذوفة محلياً
+    const deleted = JSON.parse(localStorage.getItem(SESSION_DELETED_KEY) || '{}');
+    if (deleted[nr.caseNum] && new Date(nr.updatedAt) <= new Date(deleted[nr.caseNum])) return;
     const isEcho = nr.updatedAt === lastLocalSaveAt;
     const remoteNewer = new Date(nr.updatedAt) > new Date(sessions[nr.caseNum]?.updatedAt || 0);
     if (!sessions[nr.caseNum]) sessions[nr.caseNum] = {};
@@ -2535,8 +2705,11 @@ async function initSync(){
   const remote = await fetchSessionsFromServer();
   if (!remote) return;
   const local = getStoredSessions();
+  const deleted = JSON.parse(localStorage.getItem(SESSION_DELETED_KEY) || '{}');
   Object.keys(remote).forEach(caseNum => {
     if (caseNum === currentCaseNumber) return;
+    // لا تُرجع الجلسات المحذوفة محلياً
+    if (deleted[caseNum] && new Date(remote[caseNum].updatedAt) <= new Date(deleted[caseNum])) return;
     const r = remote[caseNum], l = local[caseNum];
     if (!l || new Date(r.updatedAt) >= new Date(l.updatedAt)) local[caseNum] = r;
   });

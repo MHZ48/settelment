@@ -27,7 +27,7 @@ html,body{height:100%;font-family:'Tajawal',sans-serif;direction:rtl;background:
 #body{display:flex;flex:1;overflow:hidden}
 
 /* FORM */
-#form{width:300px;min-width:250px;max-width:600px;background:var(--panel);overflow-y:auto;border-left:1px solid var(--brd);flex-shrink:0;display:flex;flex-direction:column}
+#form{width:400px;min-width:250px;max-width:600px;background:var(--panel);overflow-y:auto;border-left:1px solid var(--brd);flex-shrink:0;display:flex;flex-direction:column}
 
 /* RESIZE HANDLE */
 #resize-handle{width:6px;background:var(--brd);cursor:col-resize;flex-shrink:0;position:relative}
