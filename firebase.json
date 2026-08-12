@@ -1,0 +1,25 @@
+{
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      ".firebaserc",
+      "node_modules/**",
+      "server/**",
+      "data con/**",
+      ".git/**",
+      ".claude/**",
+      "New folder/**",
+      "package-lock.json",
+      "package.json",
+      ".gitignore",
+      "response.txt"
+    ],
+    "cleanUrls": true,
+    "trailingSlash": false
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  }
+}
+

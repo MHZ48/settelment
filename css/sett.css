@@ -27,7 +27,7 @@ html,body{height:100%;font-family:'Tajawal',sans-serif;direction:rtl;background:
 #body{display:flex;flex:1;overflow:hidden}
 
 /* FORM */
-#form{width:400px;min-width:250px;max-width:600px;background:var(--panel);overflow-y:auto;border-left:1px solid var(--brd);flex-shrink:0;display:flex;flex-direction:column}
+#form{width:520px;min-width:250px;max-width:700px;background:var(--panel);overflow-y:auto;border-left:1px solid var(--brd);flex-shrink:0;display:flex;flex-direction:column}
 
 /* RESIZE HANDLE */
 #resize-handle{width:6px;background:var(--brd);cursor:col-resize;flex-shrink:0;position:relative}
@@ -179,7 +179,10 @@ html,body{height:100%;font-family:'Tajawal',sans-serif;direction:rtl;background:
 .brb{border:2px solid #7a5c2a;padding:7px 11px;margin:4px 0}
 .yb{border:2px solid #8B6010;background:#fffce6;padding:7px 12px;margin:7px 0;text-align:center;font-weight:700;font-size:14px;color:#5a0000}
 .il{margin:3px 0;font-weight:700}
-.sbs{display:flex;gap:10px;margin:5px 0;align-items:flex-start}
+.sbs{display:flex;gap:10px;margin:5px 0;align-items:flex-start;width:100%;box-sizing:border-box}
+.sbs>div{overflow:hidden;min-width:0}
+.sbs .dt{width:100%}
+.sbs .dt td,.sbs .dt th{word-break:break-word;overflow-wrap:break-word}
 hr.sd{border:none;border-top:1.5px solid #888;margin:8px 0}
 @keyframes sf{0%{background:rgba(82,183,136,.25)}100%{background:transparent}}
 .sf{animation:sf .4s ease-out}
@@ -232,7 +235,7 @@ html.light ::-webkit-scrollbar-thumb{background:var(--brd)}
   @page{size:A4;margin:0}
   html,body{overflow:visible!important;height:auto!important}
   #app{height:auto!important;overflow:visible!important;display:block!important}
-  #hdr,#form,#rwrap,#tb,#modal{display:none!important}
+  #hdr,#form,#rwrap,#tb,#modal,#session-overlay,#dmg-modal-overlay,#year-modal-overlay{display:none!important}
   #body{display:block!important;overflow:visible!important;height:auto!important}
   #doc{padding:0!important;background:#fff!important;overflow:visible!important;height:auto!important;display:block!important;align-items:unset!important;gap:0!important}
   #page,.p-page{box-shadow:none!important;width:210mm!important;max-width:210mm!important;height:297mm!important;overflow:hidden!important;border-radius:0!important}

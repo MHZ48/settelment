@@ -161,7 +161,7 @@ async function checkNewColor(colorName) {
 }
 
 // دالة الإضافة الشاملة
-async function insertAndReturnDB(tableName, record) {
+async function insertAndReturnDB(tableName, record, ignoreConflict = false) {
   try {
     const response = await fetch(`${SUPABASE_URL_BASE}/${tableName}`, {
       method: 'POST',
@@ -174,6 +174,7 @@ async function insertAndReturnDB(tableName, record) {
 
     if (!response.ok) {
       const err = await response.json();
+      if (ignoreConflict && err.code === '23505') return null;
       console.error("Supabase Error:", err);
       return null;
     }
@@ -192,7 +193,7 @@ async function checkNewMake(makeName) {
   CAR_DATA[makeName] = [];
   _saveCustomCarLocal(makeName, null);
   fillMakesDatalist();
-  const inserted = await insertAndReturnDB('car_makes', { make_name: makeName });
+  const inserted = await insertAndReturnDB('car_makes', { make_name: makeName }, true);
   if (inserted) {
     MAKE_NAME_TO_ID[makeName] = inserted.id;
   }
@@ -223,7 +224,7 @@ async function checkNewModel(modelName) {
   CAR_DATA[currentMake].push(modelName);
   _saveCustomCarLocal(currentMake, modelName);
   onMakeInput(currentMake);
-  await insertAndReturnDB('car_models', { make_id: makeId, model_name: modelName });
+  await insertAndReturnDB('car_models', { make_id: makeId, model_name: modelName }, true);
 }
 async function checkNewPart(partName) {
   if (!partName || PDB.includes(partName)) return;
@@ -340,6 +341,15 @@ function _dconOverflows(dcon) {
   return dcon.scrollHeight > dcon.clientHeight + 2;
 }
 
+function _removeExtraPages() {
+  const doc = document.getElementById('doc');
+  if (!doc) return;
+  doc.querySelectorAll('.page-wrap').forEach((wrap, idx) => {
+    if (idx === 0) return;
+    wrap.remove();
+  });
+}
+
 function _doCheckOverflow() {
   _overflowPending = false;
   requestAnimationFrame(() => {
@@ -421,7 +431,9 @@ function _doCheckOverflow() {
         for (const clone of cloneTables) {
           const srcId = clone.getAttribute('data-split-src');
           const srcTable = document.getElementById(srcId);
-          if (!srcTable) continue;
+          // Only process TABLE clones — wrapper divs (e.g. .sbs) have no hidden
+          // rows in their own element, causing the 0===0 guard to wrongly delete them.
+          if (!srcTable || srcTable.tagName !== 'TABLE') continue;
           const srcTbody = srcTable.querySelector('tbody') || srcTable;
           const cloneBody = clone.querySelector('tbody') || clone;
           const hiddenRows = [...srcTbody.querySelectorAll(':scope > [data-split-hidden]')];
@@ -789,7 +801,7 @@ S('vreg','خصوصي');
 S('vcol','-');
 
 // ═══════════════════════════════════════════
-// DAMAGE POINTS MODAL (1-20)
+// DAMAGE POINTS MODAL (0-28)
 // ═══════════════════════════════════════════
 let _dmgGridBuilt=false;
 let _dmgSelected=new Set();
@@ -800,7 +812,7 @@ function buildDmgGrid(){
   ['dmg-modal-grid','dmg-inline-grid'].forEach(gid=>{
     const grid=document.getElementById(gid);
     if(!grid) return;
-    for(let i=0;i<=20;i++){
+    for(let i=0;i<=28;i++){
       const btn=document.createElement('button');
       btn.type='button';
       btn.className='yr-btn';
@@ -846,6 +858,24 @@ function applyDmgSelect(){
   chkConf();
   document.getElementById('dmg-modal-overlay').style.display='none';
 }
+// تنقل بأسهم الكيبورد بين أزرار نقاط الضرر (يمين=السابق، يسار=التالي لأن الصفحة RTL)
+document.addEventListener('keydown', function(e){
+  if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight'&&e.key!=='ArrowUp'&&e.key!=='ArrowDown') return;
+  const btn=e.target.closest('.dmg-pt-grid button');
+  if(!btn) return;
+  const buttons=[...btn.parentElement.querySelectorAll('button')];
+  const idx=buttons.indexOf(btn);
+  if(idx<0) return;
+  const cols=8;
+  let next=idx;
+  if(e.key==='ArrowRight') next=idx-1;
+  else if(e.key==='ArrowLeft') next=idx+1;
+  else if(e.key==='ArrowDown') next=idx+cols;
+  else if(e.key==='ArrowUp') next=idx-cols;
+  if(next<0||next>=buttons.length) return;
+  e.preventDefault();
+  buttons[next].focus();
+});
 function clearDmgSelect(){
   _dmgSelected.clear();
   document.getElementById('dmg-modal-grid').querySelectorAll('.yr-btn').forEach(b=>b.classList.remove('sel'));
@@ -861,6 +891,7 @@ function clearDmgSelect(){
 function updateRespDisplay(val){
   const n=parseInt(val)||100;
   const line=document.getElementById('d-resp-line');
+  if(!line) return;
   const pctSpan=`<span style="color:#cc0000;font-weight:700">${n}%</span>`;
   if(n>=100){
     line.innerHTML=`حدود المسؤولية : ${pctSpan} من مسؤولية على المركبة المؤمنة لدينا .`;
@@ -1146,11 +1177,21 @@ function selModel(n){document.getElementById('f-vcls').value=n;S('vcls',n);docum
 function addCustomP(){
   const inp=document.getElementById('psearch');
   const n=inp.value.trim();if(!n)return;
+  checkNewPart(n);
   addP(n,'');inp.value='';document.getElementById('plist').classList.remove('vis');
 }
 function addP(name,price,sub){
   if(parts.some(p=>p.name.trim()===name.trim())) return;
-  parts.push({name,sub:sub||'',subs:sub?[sub]:[],price:price||''});claimPrices.push(null);renderParts();updPTbl();checkOverflow();
+  parts.push({
+    name,
+    sub:sub||'',
+    subs:sub?[sub]:[],
+    prices:[price||'','','']
+  });
+  claimPrices.push(null);
+  renderParts();
+  updPTbl();
+  checkOverflow();
 }
 let _subRes=[];
 function filterSub(q,i,j){
@@ -1173,16 +1214,29 @@ function selSub(n,i,j){
 }
 function renderParts(){
   document.getElementById('added-parts').innerHTML=parts.map((p,i)=>{
-    if(!p.subs) p.subs=p.sub?[{name:p.sub,price:''}]:[];
+    if(!p.subs) p.subs=p.sub?[{name:p.sub,prices:['','','']}]:[];
     // تحويل subs قديمة (strings) لـ objects
-    p.subs=p.subs.map(s=>typeof s==='string'?{name:s,price:''}:s);
-    const total=getTotalPrice(p);
+    p.subs=p.subs.map(s=>typeof s==='string'?{name:s,prices:['','','']}:s);
+    if(!p.prices){
+      p.prices = p.price!==undefined ? [p.price||'','',''] : ['','',''];
+    }
+    if(!Array.isArray(p.prices)){
+      p.prices = ['','',''];
+    }
+    while(p.prices.length<3) p.prices.push('');
     const subsHtml=p.subs.map((s,j)=>{
       const sh=!!s.half;
-      const sp=parseFloat(s.price)||0;
+      if(!s.prices){
+        s.prices = s.price!==undefined ? [s.price||'','',''] : ['','',''];
+      }
+      if(!Array.isArray(s.prices)){
+        s.prices = ['','',''];
+      }
+      while(s.prices.length<3) s.prices.push('');
+      const sp=getPartPrice(s);
       const seff=sh?sp*0.5:sp;
       return `
-      <div style="display:grid;grid-template-columns:1fr 60px 28px 22px;gap:3px;align-items:center;margin-top:3px">
+      <div style="display:grid;grid-template-columns:1fr 180px 56px;gap:3px;align-items:center;margin-top:3px">
         <div style="display:flex;gap:3px;align-items:center">
           <span style="color:${sh?'#cc0000':'var(--txt)'};font-size:11px;font-weight:700;flex-shrink:0">+</span>
           <div style="position:relative;flex:1">
@@ -1193,42 +1247,165 @@ function renderParts(){
           <div id="spl-${i}-${j}" style="display:none;position:absolute;top:100%;right:0;left:0;z-index:50;max-height:120px;overflow-y:auto;border:1px solid var(--brd);border-radius:5px;background:var(--inp)"></div>
         </div>
         </div>
-        <div style="text-align:center">
-          <input type="number" value="${s.price||''}" placeholder="0" min="0"
-            onchange="parts[${i}].subs[${j}].price=this.value;claimPrices[${i}]=null;renderParts();updPTbl();calc()" oninput="parts[${i}].subs[${j}].price=this.value;claimPrices[${i}]=null;updPTbl();calc()"
-            style="background:var(--inp);border:1px solid ${sh?'#8b6000':'var(--brd)'};border-radius:4px;color:${sh?'#cc0000':'var(--txt)'};font-family:'Tajawal',sans-serif;font-size:11px;font-weight:700;padding:3px 5px;width:100%">
-          ${sh&&sp?`<div style="font-size:10px;color:#cc0000;font-weight:700;margin-top:1px">= ${seff%1===0?seff.toFixed(0):seff.toFixed(1)}</div>`:''}
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px">
+          ${[0,1,2].map(k=>`<input id="sprice-${i}-${j}-${k}" class="price-inp" type="number" value="${escH(s.prices[k]||'')}" placeholder="سعر ${k+1}" min="0"
+            onchange="parts[${i}].subs[${j}].prices[${k}]=this.value;claimPrices[${i}]=null;renderParts();updPTbl();calc()" oninput="parts[${i}].subs[${j}].prices[${k}]=this.value;claimPrices[${i}]=null;updPTbl();calc()"
+            style="background:var(--inp);border:1px solid var(--brd);border-radius:4px;color:var(--txt);font-family:'Tajawal',sans-serif;font-size:11px;font-weight:700;padding:3px 5px;width:100%">`).join('')}
         </div>
-        <button onclick="toggleSubHalf(${i},${j})" title="50% من القطعة التابعة"
-          style="padding:2px 3px;border-radius:4px;border:1px solid ${sh?'#cc0000':'var(--brd)'};background:${sh?'#3d2e00':'var(--inp)'};color:${sh?'#cc0000':'var(--dim)'};font-family:'Tajawal',sans-serif;font-size:11px;font-weight:700;cursor:pointer;width:100%;line-height:1.2">½</button>
-        <button class="bsm bdel" style="padding:2px 5px;font-size:11px" onclick="remSub(${i},${j})">×</button>
+        <div style="display:flex;gap:3px;align-items:center;justify-content:flex-end;min-width:56px">
+          <button onclick="toggleSubHalf(${i},${j})" title="50% من القطعة التابعة"
+            style="padding:3px 4px;border-radius:4px;border:1px solid ${sh?'#cc0000':'var(--brd)'};background:${sh?'#3d2e00':'var(--inp)'};color:${sh?'#cc0000':'var(--dim)'};font-family:'Tajawal',sans-serif;font-size:11px;font-weight:700;cursor:pointer;transition:all .15s;width:24px;height:24px;display:flex;align-items:center;justify-content:center">½</button>
+          <button class="bsm bdel" onclick="remSub(${i},${j})" style="padding:0;width:24px;height:24px;border-radius:4px;border:1px solid var(--brd);background:var(--inp);color:var(--txt);display:flex;align-items:center;justify-content:center;font-size:12px;line-height:1">✕</button>
+        </div>
       </div>`;
     }).join('');
     const is50=!!p.half;
     const effectiveTotal=getTotalPrice(p);
-    return `<div style="background:var(--sec);border:1px solid var(--brd);border-radius:5px;padding:6px 8px;margin-bottom:6px${is50?';border-color:#8b6000;':'' }">
-      <div style="display:grid;grid-template-columns:1fr 68px 36px 24px;gap:4px;align-items:start">
+    const avgPrice=getPartPrice(p);
+    return `<div style="position:relative;background:var(--sec);border:1px solid var(--brd);border-radius:5px;padding:6px 8px;margin-bottom:6px${is50?';border-color:#8b6000;':'' }">
+      <div style="display:grid;grid-template-columns:1fr 160px 36px 56px;gap:4px;align-items:start">
         <input type="text" value="${escH(p.name)}" placeholder="اسم القطعة"
           oninput="parts[${i}].name=this.value;updPTbl()"
           style="background:var(--inp);border:1px solid var(--brd);border-radius:4px;color:var(--txt);font-family:'Tajawal',sans-serif;font-size:12px;padding:4px 6px;width:100%;font-weight:700">
-        <div style="text-align:center">
-          <input type="number" value="${escH(p.price)}" placeholder="السعر"
-            onchange="parts[${i}].price=this.value;claimPrices[${i}]=null;renderParts();updPTbl();calc()" oninput="parts[${i}].price=this.value;claimPrices[${i}]=null;updPTbl();calc()" min="0"
-            style="background:var(--inp);border:1px solid var(--brd);border-radius:4px;color:var(--txt);font-family:'Tajawal',sans-serif;font-size:12px;padding:4px 6px;width:100%">
-          ${p.subs.length||is50?`<div style="font-size:11px;margin-top:2px;font-weight:700;${is50?'color:#cc0000':'color:var(--grn3)'}">= ${effectiveTotal%1===0?effectiveTotal.toFixed(0):effectiveTotal.toFixed(1)}</div>`:''}
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px">
+          ${[0,1,2].map(j=>`<input id="pprice-${i}-${j}" class="price-inp" type="number" value="${escH(p.prices[j]||'')}" placeholder="سعر ${j+1}" min="0"
+            onchange="parts[${i}].prices[${j}]=this.value;claimPrices[${i}]=null;renderParts();updPTbl();calc()" oninput="parts[${i}].prices[${j}]=this.value;claimPrices[${i}]=null;updPTbl();calc()"
+            style="background:var(--inp);border:1px solid var(--brd);border-radius:4px;color:var(--txt);font-family:'Tajawal',sans-serif;font-size:11px;padding:4px 6px;width:100%">`).join('')}
         </div>
-        <button onclick="toggleHalf(${i})" title="50% من القطعة"
-          style="padding:3px 4px;border-radius:4px;border:1px solid ${is50?'#cc0000':'var(--brd)'};background:${is50?'#3d2e00':'var(--inp)'};color:${is50?'#cc0000':'var(--dim)'};font-family:'Tajawal',sans-serif;font-size:11px;font-weight:700;cursor:pointer;transition:all .15s;width:100%;height:100%">½</button>
-        <button class="bsm bdel" onclick="remP(${i})">✕</button>
+        <div style="font-size:11px;line-height:1.4;text-align:center;color:${is50?'#cc0000':'var(--grn3)'};white-space:normal;">${roundNearest5(avgPrice)}<br>متوسط</div>
+        <div style="display:flex;gap:3px;align-items:center;justify-content:flex-end;min-width:56px">
+          <button onclick="toggleHalf(${i})" title="50% من القطعة"
+            style="padding:3px 4px;border-radius:4px;border:1px solid ${is50?'#cc0000':'var(--brd)'};background:${is50?'#3d2e00':'var(--inp)'};color:${is50?'#cc0000':'var(--dim)'};font-family:'Tajawal',sans-serif;font-size:11px;font-weight:700;cursor:pointer;transition:all .15s;width:24px;height:24px;display:flex;align-items:center;justify-content:center">½</button>
+          <button class="bsm bdel" onclick="remP(${i})" style="padding:0;width:24px;height:24px;border-radius:4px;border:1px solid var(--brd);background:var(--inp);color:var(--txt);display:flex;align-items:center;justify-content:center;font-size:12px;line-height:1">✕</button>
+        </div>
       </div>
       ${subsHtml}
       <button class="bsm badd" style="margin-top:5px;font-size:11px;padding:2px 7px" onclick="addSub(${i})">+ تابعة</button>
     </div>`;
   }).join('');
 }
+// تنقل بأسهم الكيبورد بين حقول أسعار القطع والقطع التابعة: فوق/تحت بين الصفوف، يمين/يسار بين الأعمدة (بدون تغيير القيمة)
+function getPriceRows(){
+  const rows=[];
+  parts.forEach((p,i)=>{
+    rows.push({i});
+    (p.subs||[]).forEach((s,j)=>rows.push({i,j}));
+  });
+  return rows;
+}
+function priceInputId(row,col){
+  return row.j!==undefined ? `sprice-${row.i}-${row.j}-${col}` : `pprice-${row.i}-${col}`;
+}
+document.addEventListener('keydown', function(e){
+  if(e.key!=='ArrowUp'&&e.key!=='ArrowDown'&&e.key!=='ArrowLeft'&&e.key!=='ArrowRight') return;
+  const inp=e.target.closest('.price-inp');
+  if(!inp) return;
+  let m=inp.id.match(/^pprice-(\d+)-(\d+)$/);
+  let cur;
+  if(m) cur={i:+m[1],col:+m[2]};
+  else {
+    m=inp.id.match(/^sprice-(\d+)-(\d+)-(\d+)$/);
+    if(!m) return;
+    cur={i:+m[1],j:+m[2],col:+m[3]};
+  }
+  let targetRow={i:cur.i,j:cur.j};
+  let targetCol=cur.col;
+  if(e.key==='ArrowUp'||e.key==='ArrowDown'){
+    const rows=getPriceRows();
+    const rowIdx=rows.findIndex(r=>r.i===cur.i&&r.j===cur.j);
+    if(rowIdx<0) return;
+    e.preventDefault();
+    const nextRow=rows[e.key==='ArrowDown'?rowIdx+1:rowIdx-1];
+    if(!nextRow) return;
+    targetRow=nextRow;
+  } else {
+    // الصفحة RTL: يمين=العمود السابق، يسار=العمود التالي (نفس اتجاه ترتيب الأعمدة بصرياً)
+    e.preventDefault();
+    const nextCol=e.key==='ArrowRight'?cur.col-1:cur.col+1;
+    if(nextCol<0||nextCol>2) return;
+    targetCol=nextCol;
+  }
+  const targetId=priceInputId(targetRow,targetCol);
+  inp.blur();
+  const el=document.getElementById(targetId);
+  if(el){ el.focus(); el.select(); }
+});
+
+// تنقل عام بأسهم الكيبورد بين كل حقول الفورم: فوق/تحت للحقل التالي/السابق، يمين/يسار بين حقول الأرقام بنفس الصف (بدون تغيير القيمة)
+// الحقول من نوع select/textarea، وحقول جدول القطع (لها تنقل خاص أعلاه)، تبقى بسلوكها الطبيعي
+function getFormRows(){
+  const container=document.getElementById('form');
+  if(!container) return [];
+  const rows=[];
+  const seen=new Set();
+  container.querySelectorAll('.fg, .r2').forEach(el=>{
+    if(seen.has(el)) return;
+    if(el.classList.contains('r2')){
+      seen.add(el);
+      const cols=[...el.children].filter(c=>c.classList&&c.classList.contains('fg'));
+      cols.forEach(c=>seen.add(c));
+      rows.push(cols);
+    } else if(!(el.parentElement&&el.parentElement.classList.contains('r2'))){
+      seen.add(el);
+      rows.push([el]);
+    }
+  });
+  return rows;
+}
+function formFieldOf(fg){
+  if(!fg) return null;
+  return fg.querySelector('input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=file])');
+}
+document.addEventListener('keydown', function(e){
+  if(e.key!=='ArrowUp'&&e.key!=='ArrowDown'&&e.key!=='ArrowLeft'&&e.key!=='ArrowRight') return;
+  const target=e.target;
+  if(!target.matches||!target.matches('input')) return;
+  if(['checkbox','radio','file','hidden'].includes(target.type)) return;
+  if(target.closest('.price-inp')) return; // مجال أسعار القطع له تنقل خاص فوق
+  if(!target.closest('#form')) return;
+  const fg=target.closest('.fg');
+  if(!fg) return;
+  const rows=getFormRows();
+  let rowIdx=-1,colIdx=-1;
+  for(let r=0;r<rows.length;r++){
+    const c=rows[r].indexOf(fg);
+    if(c>-1){rowIdx=r;colIdx=c;break;}
+  }
+  if(rowIdx<0) return;
+
+  if(e.key==='ArrowUp'||e.key==='ArrowDown'){
+    e.preventDefault();
+    const dir=e.key==='ArrowDown'?1:-1;
+    let r=rowIdx,landed=null;
+    while(true){
+      r+=dir;
+      if(r<0||r>=rows.length) break;
+      const row=rows[r];
+      const col=Math.min(colIdx,row.length-1);
+      const f=formFieldOf(row[col]);
+      if(f&&f.offsetParent!==null){ landed=f; break; }
+    }
+    if(!landed) return;
+    target.blur();
+    landed.focus();
+    if(landed.select) landed.select();
+    return;
+  }
+
+  if(target.type!=='number') return; // يمين/يسار للحقول النصية تبقى لتحريك المؤشر بالكتابة
+  e.preventDefault();
+  const row=rows[rowIdx];
+  const nextCol=e.key==='ArrowRight'?colIdx-1:colIdx+1; // الصفحة RTL
+  if(nextCol<0||nextCol>=row.length) return;
+  const f=formFieldOf(row[nextCol]);
+  if(!f||f.offsetParent===null) return;
+  target.blur();
+  f.focus();
+  if(f.select) f.select();
+});
 function addSub(i){
   if(!parts[i].subs) parts[i].subs=[];
-  parts[i].subs.push({name:'',price:''});
+  parts[i].subs.push({name:'',prices:['','','']});
   renderParts();
   updPTbl();
   // focus على آخر حقل تابعة
@@ -1267,6 +1444,23 @@ function getFullNameHTML(p){
     return acc+' + '+label;
   }, baseName);
 }
+function roundNearest5(value){
+  return Math.round(value / 5) * 5;
+}
+function getPartPrice(p){
+  const rawPrices = Array.isArray(p.prices) ? p.prices : (p.prices !== undefined ? [p.prices] : []);
+  const validPrices = rawPrices
+    .map((v, idx) => ({ value: v, num: parseFloat(v) }))
+    .filter(item => String(item.value).trim() !== '' && !Number.isNaN(item.num))
+    .map(item => item.num);
+  if (validPrices.length > 0) {
+    return validPrices.reduce((a, b) => a + b, 0) / validPrices.length;
+  }
+  if (p.price !== undefined) {
+    return parseFloat(p.price) || 0;
+  }
+  return 0;
+}
 function toggleHalf(i){
   parts[i].half=!parts[i].half;
   claimPrices[i]=null;
@@ -1278,27 +1472,36 @@ function toggleSubHalf(i,j){
   renderParts();updPTbl();calc();
 }
 function getTotalPrice(p){
-  const base=parseFloat(p.price)||0;
+  const base=getPartPrice(p);
   const arr=p.subs&&p.subs.length?p.subs:[];
   const subsTotal=arr.reduce((a,s)=>{
-    const sp=parseFloat(typeof s==='object'?s.price:0)||0;
+    const sp=getPartPrice(s);
     return a+(s.half?sp*0.5:sp);
   },0);
-  // النص يطبق على الأم فقط، التابعات بسعرها الكامل
+  // السعر المتوسط يطبق على الأم فقط، التابعات تحسب بالسعر الكامل مع دعم ٣ أسعار
   return (p.half?base*0.5:base)+subsTotal;
 }
 function updPTbl(){
+  const agencyMode=isAgencyMode();
   document.getElementById('parts-tbody').innerHTML=parts.map((p,i)=>{
     const eff=getTotalPrice(p);
     return `<tr>
       <td>${getFullNameHTML(p)}</td>
-      <td style="color:#000">${eff%1===0?eff.toFixed(0):eff.toFixed(1)}</td>
+      <td style="color:#000">${agencyMode?fmtComma(eff):roundNearest5(eff)}</td>
     </tr>`;
   }).join('');
   updCTbl();
-  const s=parts.reduce((a,p)=>a+getTotalPrice(p),0);
-  document.getElementById('d-pt').textContent=s.toFixed(0);
-  document.getElementById('fp-pt').textContent=s.toFixed(0);
+  const s=getPartsTotal();
+  const sDisplay=agencyMode?fmtComma(s):s;
+  document.getElementById('d-pt').textContent=sDisplay;
+  document.getElementById('fp-pt').textContent=sDisplay;
+  const modeBtn=document.getElementById('agency-mode-btn');
+  if(modeBtn){
+    modeBtn.style.background=agencyMode?'var(--grn)':'';
+    modeBtn.style.borderColor=agencyMode?'var(--grn2)':'';
+    modeBtn.style.color=agencyMode?'#fff':'';
+  }
+  updPriceHeader();
   calc();
 }
 function calcClaimPrice(price){
@@ -1322,10 +1525,10 @@ function updCTbl(){
   // سعر القطعة للادعاء: سعر الأم فقط بدون القطع التابعة ذات ½
   function claimBase(p){
     // الأم بـ ½: سعرها = 0 في الادعاء، التابعات تُحسب طبيعي
-    const base=p.half?0:(parseFloat(p.price)||0);
+    const base=p.half?0:getPartPrice(p);
     const subsTotal=(p.subs||[]).reduce((a,s)=>{
       if(s.half) return a;
-      return a+(parseFloat(typeof s==='object'?s.price:0)||0);
+      return a+getPartPrice(s);
     },0);
     return base+subsTotal;
   }
@@ -1354,10 +1557,10 @@ function renderClaimPriceList(){
   if(!container) return;
   if(!parts.length){container.innerHTML='<div style="font-size:10px;color:var(--dim);text-align:center;padding:6px 0">لا توجد قطع مضافة</div>';document.getElementById('fp-ct').textContent='0';return;}
   function claimBase2(p){
-    const base=p.half?0:(parseFloat(p.price)||0);
+    const base=p.half?0:getPartPrice(p);
     const subsTotal=(p.subs||[]).reduce((a,s)=>{
       if(s.half) return a;
-      return a+(parseFloat(typeof s==='object'?s.price:0)||0);
+      return a+getPartPrice(s);
     },0);
     return base+subsTotal;
   }
@@ -1384,10 +1587,10 @@ function renderClaimPriceList(){
 
 function updCTblFromInput(){
   function claimBase3(p){
-    const base=p.half?0:(parseFloat(p.price)||0);
+    const base=p.half?0:getPartPrice(p);
     const subsTotal=(p.subs||[]).reduce((a,s)=>{
       if(s.half) return a;
-      return a+(parseFloat(typeof s==='object'?s.price:0)||0);
+      return a+getPartPrice(s);
     },0);
     return base+subsTotal;
   }
@@ -1501,8 +1704,30 @@ function updPriceHeader(){
   const th=document.getElementById('parts-price-header');
   if(!th) return;
   const handle=th.querySelector('.resize-handle-col');
-  th.textContent=disc>0?'اسعار وكالة':'متوسط اسعار';
+  th.textContent=(disc>0||isAgencyMode())?'اسعار وكالة':'متوسط اسعار';
   if(handle) th.appendChild(handle);
+}
+
+function isAgencyMode(){
+  return !!document.getElementById('f-agency-mode')?.checked;
+}
+function toggleAgencyMode(){
+  const cb=document.getElementById('f-agency-mode');
+  if(!cb) return;
+  cb.checked=!cb.checked;
+  updPTbl();
+}
+function fmtComma(value){
+  const num=Math.round(value*100)/100;
+  const neg=num<0?'-':'';
+  const [ip,dp]=Math.abs(num).toString().split('.');
+  const withCommas=ip.replace(/\B(?=(\d{3})+(?!\d))/g,',');
+  return neg+(dp?withCommas+'.'+dp:withCommas);
+}
+function getPartsTotal(){
+  return isAgencyMode()
+    ? roundNearest5(parts.reduce((a,p)=>a+getTotalPrice(p),0))
+    : parts.reduce((a,p)=>a+roundNearest5(getTotalPrice(p)),0);
 }
 
 function calcBrk(){
@@ -1513,7 +1738,7 @@ function calcBrk(){
   calc();
 }
 function calc(){
-  const pts=parts.reduce((a,p)=>a+getTotalPrice(p),0);
+  const pts=getPartsTotal();
   const wages=parseFloat(document.getElementById('f-wages').value)||0;
   const depr=parseFloat(document.getElementById('f-depr').value)||0;
   const d=parseFloat(document.getElementById('f-ed').value)||0;
@@ -1523,60 +1748,61 @@ function calc(){
 
   // خصم الوكالة على القطع
   const discPct2=parseFloat(document.getElementById('f-disc').value)||0;
-  const discVal2=Math.round(pts*discPct2/100);
-  const netPts=Math.round(pts-discVal2);
+  const discVal2=pts*discPct2/100;
+  const netPts=pts-discVal2;
   // خصم الاستهلاك على ناتج الوكالة
   const deprPct2=parseFloat(document.getElementById('f-deprpct')?.value)||0;
-  const baseDepr2=discPct2>0?netPts:Math.round(pts);
-  const deprDiscVal2=Math.round(baseDepr2*deprPct2/100);
-  const finalPts=Math.round(baseDepr2-deprDiscVal2);
+  const baseDepr2=discPct2>0?netPts:pts;
+  const deprDiscVal2=baseDepr2*deprPct2/100;
+  const finalPts=baseDepr2-deprDiscVal2;
   // القيمة النهائية للقطع بعد الخصومات
   const effectivePts=(discPct2>0||deprPct2>0)?finalPts:pts;
 
-  const av=(effectivePts+wages+depr)-vpre;
-  const rp=effectivePts+wages+depr+brk;
+  const roundedPts=roundNearest5(effectivePts);
+  const av=(roundedPts+wages+depr)-vpre;
+  const rp=roundedPts+wages+depr+brk;
   const vpost=Math.abs(av);
   document.getElementById('f-vpost').value=Math.round(vpost);
-  document.getElementById('d-vpost').textContent=Math.round(vpost);
+  const dVpost=document.getElementById('d-vpost'); if(dVpost) dVpost.textContent=Math.round(vpost);
   S('vpost',Math.round(vpost));
-  document.getElementById('d-rp').textContent=Math.round(rp);
+  const dRp=document.getElementById('d-rp'); if(dRp) dRp.textContent=Math.round(rp);
   document.getElementById('fp-av').textContent=Math.round(Math.abs(av));
   document.getElementById('fp-rp').textContent=Math.round(rp);
 
   // خصم الوكالة على المجموع
   const discPct=parseFloat(document.getElementById('f-disc').value)||0;
-  const discVal=Math.round(pts*discPct/100);
-  const netVal=Math.round(pts-discVal);
+  const discVal=pts*discPct/100;
+  const netVal=pts-discVal;
   const discRow=document.getElementById('d-disc-row');
   const netRow=document.getElementById('d-net-row');
   const discBox=document.getElementById('disc-box');
   const discNetBox=document.getElementById('disc-net-box');
   if(discPct>0){
-    netRow.style.display='';
-    discBox.style.display='';
-    discNetBox.style.display='';
-    document.getElementById('d-disc-pct').textContent=discPct+'%';
-    document.getElementById('d-net').textContent=netVal.toFixed(0);
-    document.getElementById('fp-disc').textContent=discVal.toFixed(0);
-    document.getElementById('fp-net').textContent=netVal.toFixed(0);
+    if(netRow) netRow.style.display='';
+    if(discBox) discBox.style.display='';
+    if(discNetBox) discNetBox.style.display='';
+    const dDiscPct=document.getElementById('d-disc-pct'); if(dDiscPct) dDiscPct.textContent=discPct+'%';
+    const dNet=document.getElementById('d-net'); if(dNet) dNet.textContent=Math.round(netVal).toFixed(0);
+    const fpDisc=document.getElementById('fp-disc'); if(fpDisc) fpDisc.textContent=Math.round(discVal).toFixed(0);
+    const fpNet=document.getElementById('fp-net'); if(fpNet) fpNet.textContent=Math.round(netVal).toFixed(0);
   } else {
-    netRow.style.display='none';
-    discBox.style.display='none';
-    discNetBox.style.display='none';
+    if(netRow) netRow.style.display='none';
+    if(discBox) discBox.style.display='none';
+    if(discNetBox) discNetBox.style.display='none';
   }
 
   // خصم الاستهلاك على ناتج الوكالة (أو المجموع إن لا خصم وكالة)
   const deprPct=parseFloat(document.getElementById('f-deprpct')?.value)||0;
-  const baseForDepr=discPct>0?netVal:Math.round(pts);
-  const deprVal=Math.round(baseForDepr*deprPct/100);
-  const net2Val=Math.round(baseForDepr-deprVal);
+  const baseForDepr=discPct>0?netVal:pts;
+  const deprVal=baseForDepr*deprPct/100;
+  const net2Val=baseForDepr-deprVal;
   const net2Row=document.getElementById('d-net2-row');
   if(deprPct>0){
-    net2Row.style.display='';
-    document.getElementById('d-deprpct-pct').textContent=deprPct+'%';
-    document.getElementById('d-net2').textContent=net2Val.toFixed(0);
+    if(net2Row) net2Row.style.display='';
+    const dDeprpctPct=document.getElementById('d-deprpct-pct'); if(dDeprpctPct) dDeprpctPct.textContent=deprPct+'%';
+    const dNet2=document.getElementById('d-net2'); if(dNet2) dNet2.textContent=Math.round(net2Val).toFixed(0);
   } else {
-    net2Row.style.display='none';
+    if(net2Row) net2Row.style.display='none';
   }
   updateMushtarakLine();
 }
@@ -1639,7 +1865,7 @@ function renderPriors(){
       p.damage=p.damage.split(/[+,،\s]+/).map(x=>parseInt(x)).filter(n=>!isNaN(n));
     }
     const dmgLabel=p.damage&&p.damage.length?'النقاط: '+p.damage.join('+'):'اختر النقاط...';
-    const pts=Array.from({length:21},(_,k)=>k);
+    const pts=Array.from({length:29},(_,k)=>k);
     const grid=pts.map(pt=>`
       <button id="prior-pt-${i}-${pt}" type="button"
         class="yr-btn${p.damage&&p.damage.includes(pt)?' sel':''}"
@@ -1657,7 +1883,7 @@ function renderPriors(){
           <span style="font-size:9px;color:var(--grn3)">▼</span>
         </button>
         <div id="prior-popup-${i}" class="inc-popup" style="display:none;position:absolute;right:0;left:0;z-index:200;background:var(--panel);border:1px solid var(--brd);border-radius:6px;padding:8px;box-shadow:0 4px 16px rgba(0,0,0,.5);margin-top:2px">
-          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:6px">${grid}</div>
+          <div class="dmg-pt-grid" style="display:grid;grid-template-columns:repeat(8,1fr);gap:5px;margin-bottom:6px">${grid}</div>
           <button type="button" onclick="clearPriorPts(${i})" style="font-size:9px;padding:2px 8px;border-radius:4px;border:1px solid var(--brd);background:transparent;color:var(--dim);font-family:'Tajawal',sans-serif;cursor:pointer">مسح</button>
         </div>
       </div>
@@ -1716,7 +1942,7 @@ function renderAfters(){
       p.damage=p.damage.split(/[+,،\s]+/).map(x=>parseInt(x)).filter(n=>!isNaN(n));
     }
     const dmgLabel=p.damage&&p.damage.length?'النقاط: '+p.damage.join('+'):'اختر النقاط...';
-    const pts=Array.from({length:21},(_,k)=>k);
+    const pts=Array.from({length:29},(_,k)=>k);
     const grid=pts.map(pt=>`
       <button id="after-pt-${i}-${pt}" type="button"
         class="yr-btn${p.damage&&p.damage.includes(pt)?' sel':''}"
@@ -1734,7 +1960,7 @@ function renderAfters(){
           <span style="font-size:9px;color:var(--grn3)">▼</span>
         </button>
         <div id="after-popup-${i}" class="inc-popup" style="display:none;position:absolute;right:0;left:0;z-index:200;background:var(--panel);border:1px solid var(--brd);border-radius:6px;padding:8px;box-shadow:0 4px 16px rgba(0,0,0,.5);margin-top:2px">
-          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:6px">${grid}</div>
+          <div class="dmg-pt-grid" style="display:grid;grid-template-columns:repeat(8,1fr);gap:5px;margin-bottom:6px">${grid}</div>
           <button type="button" onclick="clearAfterPts(${i})" style="font-size:9px;padding:2px 8px;border-radius:4px;border:1px solid var(--brd);background:transparent;color:var(--dim);font-family:'Tajawal',sans-serif;cursor:pointer">مسح</button>
         </div>
       </div>
@@ -1823,7 +2049,7 @@ img.full{width:100%;display:block}
   a.download=name+'.html';
   document.body.appendChild(a);
   a.click();
-  maybeStoreGeneratedHtml(name, html);
+  if (typeof maybeStoreGeneratedHtml === 'function') maybeStoreGeneratedHtml(name, html);
   setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(a.href)},500);
 }
 
@@ -1874,7 +2100,7 @@ document.addEventListener('click',e=>{
 // KEYBOARD SHORTCUTS
 // ═══════════════════════════════════════════
 document.addEventListener('keydown',e=>{
-  if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();document.getElementById('modal').classList.add('open')}
+  if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();saveActiveSession();}
 });
 
 // ═══════════════════════════════════════════
@@ -2079,60 +2305,100 @@ function createOrSwitchSession(caseNum){
 
 async function saveActiveSession(){
   const caseNum = currentCaseNumber || getLastCaseNumber();
-  const btn = document.getElementById('save-session-btn');
   if (!caseNum) {
-    setSyncStatus('error');
-    return;
+    return saveAsSession();
   }
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ يتم الحفظ...'; }
+  const btn = document.getElementById('save-session-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Saving...'; }
   setSyncStatus('saving');
   const sessions = getStoredSessions();
-  sessions[caseNum] = sessions[caseNum] || createSessionObject(caseNum);
+  sessions[caseNum] = sessions[caseNum] || createSessionObject(caseNum, `قضية ${caseNum}`);
   sessions[caseNum].state = getAppState();
   sessions[caseNum].updatedAt = new Date().toISOString();
   setStoredSessions(sessions);
+  setLastCaseNumber(caseNum);
   lastLocalSaveAt = sessions[caseNum].updatedAt;
+  currentCaseNumber = caseNum;
   renderSessionList();
+  updateCurrentSessionLabel();
   try {
     await upsertSessionToServer(caseNum, sessions[caseNum]);
     setSyncStatus('saved');
-    if (btn) { btn.textContent = '✅ محفوظ'; }
+    if (btn) { btn.textContent = '✅ Saved'; }
   } catch(e) {
     console.error('saveActiveSession:', e);
+    setSyncStatus('error');
+    if (btn) { btn.textContent = '❌ Save failed'; }
+  } finally {
+    setTimeout(() => {
+      if (btn) { btn.disabled = false; btn.textContent = '💾 Save'; }
+    }, 2000);
+  }
+}
+
+function getUniqueSessionName(baseName, sessions){
+  const raw = (baseName || '').trim();
+  if (!raw) return '';
+  let candidate = raw;
+  let index = 2;
+  while (sessions[candidate]) {
+    candidate = `${raw} (${index})`;
+    index += 1;
+  }
+  return candidate;
+}
+
+async function saveAsSession(){
+  const suggested = getSessionKey() || currentCaseNumber || getLastCaseNumber() || getCaseNumber() || '';
+  const caseNum = window.prompt('أدخل اسم الجلسة الجديدة (سيتم حفظ نسخة جديدة مع الاحتفاظ بالأصل):', suggested);
+  if (!caseNum || !caseNum.trim()) return;
+
+  const cleanedCaseNum = caseNum.trim();
+  const sessions = getStoredSessions();
+  const savedCase = getUniqueSessionName(cleanedCaseNum, sessions);
+  if (!savedCase) return;
+
+  if (savedCase !== cleanedCaseNum) {
+    alert(`تم حفظ النسخة باسم "${savedCase}" لأن الاسم "${cleanedCaseNum}" موجود بالفعل.`);
+  }
+
+  const btn = document.getElementById('save-session-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ يتم الحفظ...'; }
+  setSyncStatus('saving');
+
+  sessions[savedCase] = createSessionObject(savedCase, `قضية ${savedCase}`);
+  sessions[savedCase].state = getAppState();
+  sessions[savedCase].updatedAt = new Date().toISOString();
+  sessions[savedCase].title = sessions[savedCase].title || `قضية ${savedCase}`;
+  setStoredSessions(sessions);
+
+  // ابق على نفس البيانات المفتوحة، فقط انقل الجلسة النشطة إلى النسخة الجديدة المحفوظة
+  currentCaseNumber = savedCase;
+  setLastCaseNumber(savedCase);
+  localStorage.removeItem(SESSION_NEW_MODE_KEY);
+  lastLocalSaveAt = sessions[savedCase].updatedAt;
+  renderSessionList();
+  updateCurrentSessionLabel();
+
+  try {
+    await upsertSessionToServer(savedCase, sessions[savedCase]);
+    setSyncStatus('saved');
+    if (btn) { btn.textContent = '✅ محفوظ'; }
+  } catch(e) {
+    console.error('saveAsSession:', e);
     setSyncStatus('error');
     if (btn) { btn.textContent = '❌ فشل الحفظ'; }
   } finally {
     setTimeout(() => {
-      if (btn) { btn.disabled = false; btn.textContent = '💾 حفظ الجلسة الحالية'; }
+      if (btn) { btn.disabled = false; btn.textContent = '💾 حفظ كـ'; }
     }, 2000);
   }
 }
 
 function scheduleSessionSave(){
   clearTimeout(sessionAutoSaveTimer);
-  setSyncStatus('saving');
-  sessionAutoSaveTimer = setTimeout(async () => {
-    sessionAutoSaveTimer = null;
-    const caseNum = currentCaseNumber || getLastCaseNumber();
-    if (!caseNum) return;
-    const sessions = getStoredSessions();
-    sessions[caseNum] = sessions[caseNum] || createSessionObject(caseNum);
-    const newState = getAppState();
-    const oldStateStr = JSON.stringify(sessions[caseNum].state || {});
-    const newStateStr = JSON.stringify(newState);
-    if (oldStateStr === newStateStr) { setSyncStatus('saved'); return; }
-    sessions[caseNum].state = newState;
-    sessions[caseNum].updatedAt = new Date().toISOString();
-    setStoredSessions(sessions);
-    lastLocalSaveAt = sessions[caseNum].updatedAt;
-    try {
-      await upsertSessionToServer(caseNum, sessions[caseNum]);
-      setSyncStatus('saved');
-    } catch(e) {
-      console.error('scheduleSessionSave:', e);
-      setSyncStatus('error');
-    }
-  }, 600);
+  sessionAutoSaveTimer = null;
+  setSyncStatus('');
 }
 
 function loadLastSession(){
@@ -2195,6 +2461,7 @@ function clearAppState(){
     }
 
     const dcon = document.getElementById('dcon');
+    _removeExtraPages();
     if (dcon) dcon.innerHTML = '';
 
     parts = [];
@@ -2322,7 +2589,18 @@ function bindSessionSearchInput(){
   input.addEventListener('input', renderSessionList);
 }
 
+function updateCurrentSessionLabel(){
+  const label = document.getElementById('current-session-label');
+  if (!label) return;
+  if (currentCaseNumber) {
+    label.textContent = `الجلسة الحالية: ${currentCaseNumber}`;
+  } else {
+    label.textContent = 'الجلسة الحالية: لا توجد';
+  }
+}
+
 function renderSessionList(){
+  updateCurrentSessionLabel();
   const list = document.getElementById('session-list');
   if (!list) return;
   const sessions = getStoredSessions();
@@ -2337,17 +2615,8 @@ function renderSessionList(){
 
   const newCard = document.createElement('div');
   newCard.className = 'session-card new-session';
-  newCard.innerHTML = `
-    <div>
-      <strong>جلسة جديدة</strong>
-      <p>ابدأ تقريرًا جديدًا من صفحة فارغة بدون بيانات محفوظة.</p>
-    </div>
-    <div class="session-card-footer">
-      <button class="hb hb-g">بدء</button>
-    </div>
-  `;
+  newCard.innerHTML = `<div><strong>➕ بدء جلسة جديدة</strong><p>يفتح ملف فارغ بدون أي معلومات سابقة، وتكتب رقم القضية بنفسك.</p></div>`;
   newCard.addEventListener('click', startNewSession);
-  newCard.querySelector('button')?.addEventListener('click', startNewSession);
   list.appendChild(newCard);
 
   if (!cases.length) {
@@ -2509,6 +2778,7 @@ function applyAppState(state){
     });
   }
   const dcon = document.getElementById('dcon');
+  _removeExtraPages();
   if (dcon && typeof state.dcon === 'string') dcon.innerHTML = state.dcon;
   wrapTaqabulSection();
   parts = state.parts || [];
@@ -2544,12 +2814,6 @@ function applyAppState(state){
 }
 
 function bindSessionAutosave(){
-  document.querySelectorAll('#form input, #form textarea, #form select').forEach(el => {
-    el.addEventListener('input', scheduleSessionSave);
-    el.addEventListener('change', scheduleSessionSave);
-  });
-  document.getElementById('dcon')?.addEventListener('input', scheduleSessionSave);
-  
   function onCaseKeyChange(){
     const key = getSessionKey();
     if (key && key !== currentCaseNumber) createOrSwitchSession(key);
@@ -2563,13 +2827,13 @@ function bindSessionAutosave(){
 function saveSessionNow(useKeepalive = false){
   clearTimeout(sessionAutoSaveTimer);
   sessionAutoSaveTimer = null;
-  const caseNum = currentCaseNumber || getLastCaseNumber();
-  if (!caseNum) return;
+  const caseNum = currentCaseNumber || getLastCaseNumber() || '__draft__';
   const sessions = getStoredSessions();
-  sessions[caseNum] = sessions[caseNum] || createSessionObject(caseNum);
+  sessions[caseNum] = sessions[caseNum] || createSessionObject(caseNum, caseNum === '__draft__' ? 'مسودة' : undefined);
   sessions[caseNum].state = getAppState();
   sessions[caseNum].updatedAt = new Date().toISOString();
   setStoredSessions(sessions);
+  if (caseNum === '__draft__') { setLastCaseNumber('__draft__'); lastLocalSaveAt = sessions[caseNum].updatedAt; return; }
   lastLocalSaveAt = sessions[caseNum].updatedAt;
   const s = sessions[caseNum];
   fetch(`${SERVER_URL}/api/sessions/upsert`, {
@@ -2580,31 +2844,18 @@ function saveSessionNow(useKeepalive = false){
   });
 }
 
-// Save on tab close / navigation
-window.addEventListener('beforeunload', () => saveSessionNow(true));
-
-// pagehide fires on mobile/iOS Safari where beforeunload is unreliable
-window.addEventListener('pagehide', () => saveSessionNow(true));
-
-// Save immediately when tab goes to background (covers force-kills before beforeunload fires)
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden) saveSessionNow(false);
-});
-
-// Periodic fallback save every 30 seconds
-setInterval(() => {
-  const caseNum = currentCaseNumber || getLastCaseNumber();
-  if (caseNum) upsertSessionToServer(caseNum, getStoredSessions()[caseNum]).catch(() => {});
-}, 30000);
+// Automatic session save has been disabled. Sessions are now saved manually via Save As / Save.
 
 // Poll remote sessions every 15 seconds to pick up sessions created on other devices
 async function pollRemoteSessions(){
   const remote = await fetchSessionsFromServer();
   if (!remote) return;
   const local = getStoredSessions();
+  const deleted = JSON.parse(localStorage.getItem(SESSION_DELETED_KEY) || '{}');
   let changed = false;
   Object.keys(remote).forEach(caseNum => {
     if (caseNum === currentCaseNumber) return;
+    if (deleted[caseNum] && new Date(remote[caseNum].updatedAt) <= new Date(deleted[caseNum])) return;
     const r = remote[caseNum], l = local[caseNum];
     if (!l || new Date(r.updatedAt) >= new Date(l.updatedAt)) {
       local[caseNum] = r;
