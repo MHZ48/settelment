@@ -13,7 +13,17 @@
       "package-lock.json",
       "package.json",
       ".gitignore",
-      "response.txt"
+      "response.txt",
+      "**/.*",
+      "**/*.csv",
+      "**/*.db",
+      "**/*.db-*",
+      "**/*.backup-*",
+      "**/*.tmp",
+      "Bashar Data base/**",
+      "New folder (2)/**",
+      "LOCAL_DATABASE.md",
+      "**/*.test.js"
     ],
     "cleanUrls": true,
     "trailingSlash": false
@@ -22,4 +32,3 @@
     "rules": "firestore.rules"
   }
 }
-

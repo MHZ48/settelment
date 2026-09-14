@@ -1,3 +1,5 @@
 node_modules/
 server/sessions.db
 .env
+server/*.db*
+server/test-artifacts/

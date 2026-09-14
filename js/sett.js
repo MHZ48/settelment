@@ -7,37 +7,37 @@ let fp = [];
 let leftInd=36, rightInd=36;
 let MAKE_NAME_TO_ID = {}; // لحفظ أرقام الماركات
 // ═══════════════════════════════════════════
-// FETCH DATA FROM SUPABASE
+// FETCH DATA FROM LOCAL API
 // ═══════════════════════════════════════════
-const SUPABASE_URL_BASE = 'https://dwhckbcrlgjesxniqmmr.supabase.co/rest/v1';
-const SUPABASE_URL      = 'https://dwhckbcrlgjesxniqmmr.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3aGNrYmNybGdqZXN4bmlxbW1yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzNTI5MDMsImV4cCI6MjA5MDkyODkwM30.8rkrHvEUttojlRwR1mBfOA2zhw7zlNs9bAakbpxFaGE';
+const SERVER_URL = (window.APP_CONFIG?.API_BASE_URL ?? 'http://localhost:3001').replace(/\/$/, '');
+const LOOKUP_URL = SERVER_URL + '/api';
+const HEADERS = { 'Content-Type': 'application/json' };
+const S_HEADERS = HEADERS;
 
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-let realtimeChannel  = null;
+function reportApiError(error) {
+  console.error('API:', error);
+  const el = document.getElementById('sync-status');
+  if (el) { el.textContent = '✗ تعذر الاتصال أو الحفظ على الخادم'; el.className = 'sync-error'; el.title = error.message; }
+}
+async function apiFetch(url, options = {}) {
+  try {
+    const response = await fetch(url, { credentials: 'include', ...options });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.error || ('API request failed: ' + response.status));
+    }
+    return response;
+  } catch (error) { reportApiError(error); throw error; }
+}
 
-const WORKSPACE_ID = 'dahbour-sett';
 
-const HEADERS = {
-  'apikey': SUPABASE_KEY,
-  'Authorization': `Bearer ${SUPABASE_KEY}`,
-  'Content-Type': 'application/json'
-};
 
-// ═══════════════════════════════════════════
-// SESSION SYNC — CUSTOM BACKEND
-// ═══════════════════════════════════════════
-const SERVER_URL = ''; // relative URL — works with localhost, IP, or any hostname
-const SERVER_KEY = 'sett-secret-2024';      // ← يجب أن يطابق API_KEY في .env
-const S_HEADERS  = { 'Content-Type': 'application/json', 'x-api-key': SERVER_KEY };
-
-// جلب جميع البيانات من الجداول الخمسة في نفس اللحظة لتسريع التطبيق
 Promise.all([
-  fetch(`${SUPABASE_URL_BASE}/car_makes?select=*`, { headers: HEADERS }).then(r => r.json()),
-  fetch(`${SUPABASE_URL_BASE}/car_models?select=*`, { headers: HEADERS }).then(r => r.json()),
-  fetch(`${SUPABASE_URL_BASE}/colors?select=*`, { headers: HEADERS }).then(r => r.json()),
-  fetch(`${SUPABASE_URL_BASE}/registration_types?select=*`, { headers: HEADERS }).then(r => r.json()),
-  fetch(`${SUPABASE_URL_BASE}/parts?select=*`, { headers: HEADERS }).then(r => r.json())
+  apiFetch(`${LOOKUP_URL}/car_makes?select=*`, { headers: HEADERS }).then(r => r.json()),
+  apiFetch(`${LOOKUP_URL}/car_models?select=*`, { headers: HEADERS }).then(r => r.json()),
+  apiFetch(`${LOOKUP_URL}/colors?select=*`, { headers: HEADERS }).then(r => r.json()),
+  apiFetch(`${LOOKUP_URL}/registration_types?select=*`, { headers: HEADERS }).then(r => r.json()),
+  apiFetch(`${LOOKUP_URL}/parts?select=*`, { headers: HEADERS }).then(r => r.json())
 ])
 .then(([makesData, modelsData, colorsData, regData, partsData]) => {
   
@@ -93,9 +93,9 @@ Promise.all([
   }
   localStorage.removeItem('CUSTOM_PARTS');
 
-  console.log("✅ تم تحميل جميع البيانات من Supabase بنجاح ورطها بالتطبيق!");
+  console.log("✅ تم تحميل جميع البيانات من SQLite API بنجاح ورطها بالتطبيق!");
 })
-.catch(error => console.error('❌ حدث خطأ أثناء جلب البيانات من Supabase:', error));
+.catch(error => console.error('❌ حدث خطأ أثناء جلب البيانات من SQLite API:', error));
 
 function _saveCustomCarLocal(make, model) {
   const data = JSON.parse(localStorage.getItem('CUSTOM_CAR_DATA') || '{}');
@@ -114,26 +114,9 @@ function _saveCustomPartLocal(partName) {
 // دالة موحدة لإضافة بيانات جديدة إلى قاعدة البيانات
 async function insertToDB(tableName, record) {
   try {
-    const response = await fetch(`${SUPABASE_URL_BASE}/${tableName}`, {
-      method: 'POST',
-      headers: {
-        ...HEADERS,
-        'Prefer': 'return=minimal' // لا نحتاج لعودة البيانات، فقط تأكيد الإضافة
-      },
-      body: JSON.stringify(record)
-    });
-
-    if (response.ok) {
-      console.log(`✅ تم الإضافة بنجاح إلى جدول ${tableName}`);
-      return true;
-    } else {
-      console.error(`❌ فشل الإضافة إلى ${tableName}`);
-      return false;
-    }
-  } catch (error) {
-    console.error('Network Error:', error);
-    return false;
-  }
+    await apiFetch(LOOKUP_URL + '/' + tableName, { method: 'POST', headers: HEADERS, body: JSON.stringify(record) });
+    return true;
+  } catch { return false; }
 }
 
 
@@ -150,7 +133,7 @@ async function checkNewColor(colorName) {
     const confirmAdd = confirm(`اللون "${colorName}" غير موجود في النظام. هل تريد إضافته لقاعدة البيانات؟`);
     
     if (confirmAdd) {
-      // إرسال اللون إلى Supabase
+      // إرسال اللون إلى SQLite API
       const success = await insertToDB('colors', { color_name: colorName });
       if (success) {
         loadedColors.push(colorName);
@@ -161,41 +144,22 @@ async function checkNewColor(colorName) {
 }
 
 // دالة الإضافة الشاملة
-async function insertAndReturnDB(tableName, record, ignoreConflict = false) {
+async function insertAndReturnDB(tableName, record) {
   try {
-    const response = await fetch(`${SUPABASE_URL_BASE}/${tableName}`, {
-      method: 'POST',
-      headers: {
-        ...HEADERS,
-        'Prefer': 'return=representation'
-      },
-      body: JSON.stringify(record)
-    });
-
-    if (!response.ok) {
-      const err = await response.json();
-      if (ignoreConflict && err.code === '23505') return null;
-      console.error("Supabase Error:", err);
-      return null;
-    }
-
-    const data = await response.json();
-    return data[0];
-  } catch (error) {
-    console.error('Network Error:', error);
-    return null;
-  }
+    const response = await apiFetch(LOOKUP_URL + '/' + tableName, { method: 'POST', headers: HEADERS, body: JSON.stringify(record) });
+    return (await response.json())[0];
+  } catch { return null; }
 }
 
 // إضافة ماركة جديدة (تويوتا، كيا...)
 async function checkNewMake(makeName) {
   if (!makeName || CAR_DATA[makeName]) return;
-  CAR_DATA[makeName] = [];
-  _saveCustomCarLocal(makeName, null);
-  fillMakesDatalist();
-  const inserted = await insertAndReturnDB('car_makes', { make_name: makeName }, true);
+  const inserted = await insertAndReturnDB('car_makes', { make_name: makeName });
   if (inserted) {
     MAKE_NAME_TO_ID[makeName] = inserted.id;
+    CAR_DATA[makeName] = CAR_DATA[makeName] || [];
+    _saveCustomCarLocal(makeName, null);
+    fillMakesDatalist();
   }
 }
 
@@ -214,22 +178,22 @@ async function checkNewModel(modelName) {
     makeId = MAKE_NAME_TO_ID[currentMake];
   }
   if (!makeId) {
-    const rows = await fetch(`${SUPABASE_URL_BASE}/car_makes?make_name=eq.${encodeURIComponent(currentMake)}&select=id`, { headers: HEADERS }).then(r => r.json());
+    const rows = await apiFetch(`${LOOKUP_URL}/car_makes?make_name=eq.${encodeURIComponent(currentMake)}&select=id`, { headers: HEADERS }).then(r => r.json());
     if (rows && rows[0]) {
       makeId = rows[0].id;
       MAKE_NAME_TO_ID[currentMake] = makeId;
     }
   }
   if (!makeId) return;
+  const inserted = await insertAndReturnDB('car_models', { make_id: makeId, model_name: modelName });
+  if (!inserted) return;
   CAR_DATA[currentMake].push(modelName);
   _saveCustomCarLocal(currentMake, modelName);
   onMakeInput(currentMake);
-  await insertAndReturnDB('car_models', { make_id: makeId, model_name: modelName }, true);
 }
 async function checkNewPart(partName) {
   if (!partName || PDB.includes(partName)) return;
-  PDB.push(partName);
-  await insertToDB('parts', { part_name: partName, default_price: 0 });
+  if (await insertToDB('parts', { part_name: partName, default_price: 0 })) PDB.push(partName);
 }
 
 
@@ -2274,7 +2238,7 @@ function createOrSwitchSession(caseNum){
   if (existing && existing.state) {
     applyAppState(existing.state);
   } else {
-    // New session or session synced from Supabase without state yet — start blank
+    // New session or session synced from SQLite API without state yet — start blank
     parts = [];
     repairs = [{name:'تركيب القطع'},{name:'دهان مكان الحادث'}];
     priors = [];
@@ -2489,8 +2453,9 @@ function clearAppState(){
   }
 }
 
-function deleteSession(caseNum){
+async function deleteSession(caseNum){
   if (!confirm(`هل تريد حذف جلسة القضية ${caseNum}؟`)) return;
+  try { await removeSessionFromServer(caseNum); } catch { return; }
   clearTimeout(sessionAutoSaveTimer);
   sessionAutoSaveTimer = null;
   const sessions = getStoredSessions();
@@ -2506,7 +2471,7 @@ function deleteSession(caseNum){
     clearAppState();
   }
   renderSessionList();
-  removeSessionFromServer(caseNum);
+
 }
 
 function exportSessionsToFile(){
@@ -2836,12 +2801,12 @@ function saveSessionNow(useKeepalive = false){
   if (caseNum === '__draft__') { setLastCaseNumber('__draft__'); lastLocalSaveAt = sessions[caseNum].updatedAt; return; }
   lastLocalSaveAt = sessions[caseNum].updatedAt;
   const s = sessions[caseNum];
-  fetch(`${SERVER_URL}/api/sessions/upsert`, {
+  apiFetch(`${SERVER_URL}/api/sessions/upsert`, {
     method: 'POST',
     keepalive: useKeepalive,
     headers: S_HEADERS,
     body: JSON.stringify({ caseNum, title: s.title || `قضية ${caseNum}`, state: s.state, updatedAt: s.updatedAt })
-  });
+  }).catch(reportApiError);
 }
 
 // Automatic session save has been disabled. Sessions are now saved manually via Save As / Save.
@@ -2886,7 +2851,7 @@ initSync();
 
 async function fetchSessionsFromServer(){
   try {
-    const res = await fetch(`${SERVER_URL}/api/sessions`, { headers: S_HEADERS });
+    const res = await apiFetch(`${SERVER_URL}/api/sessions`, { headers: S_HEADERS });
     if (!res.ok) throw new Error(res.status);
     return await res.json();
   } catch(e) { console.warn('fetchSessionsFromServer:', e); return null; }
@@ -2894,7 +2859,7 @@ async function fetchSessionsFromServer(){
 
 async function upsertSessionToServer(caseNum, session){
   try {
-    await fetch(`${SERVER_URL}/api/sessions/upsert`, {
+    await apiFetch(`${SERVER_URL}/api/sessions/upsert`, {
       method: 'POST', headers: S_HEADERS,
       body: JSON.stringify({ caseNum, title: session.title || `قضية ${caseNum}`, state: session.state, updatedAt: session.updatedAt || new Date().toISOString() })
     });
@@ -2903,16 +2868,16 @@ async function upsertSessionToServer(caseNum, session){
 
 async function removeSessionFromServer(caseNum){
   try {
-    await fetch(`${SERVER_URL}/api/sessions/delete`, {
+    await apiFetch(`${SERVER_URL}/api/sessions/delete`, {
       method: 'POST', headers: S_HEADERS,
       body: JSON.stringify({ caseNum })
     });
-  } catch(e) { console.warn('removeSessionFromServer:', e); }
+  } catch(e) { console.warn('removeSessionFromServer:', e); throw e; }
 }
 
 function subscribeToSessionChanges(){
   if (sseSource) sseSource.close();
-  sseSource = new EventSource(`${SERVER_URL}/api/sessions/stream?key=${encodeURIComponent(SERVER_KEY)}`);
+  sseSource = new EventSource(`${SERVER_URL}/api/sessions/stream`, { withCredentials: true });
 
   sseSource.addEventListener('upsert', e => {
     const nr = JSON.parse(e.data);
@@ -2945,7 +2910,9 @@ function subscribeToSessionChanges(){
     renderSessionList();
   });
 
+  sseSource.onopen = () => { pollRemoteSessions(); };
   sseSource.onerror = () => {
+    reportApiError(new Error('Session synchronization disconnected'));
     sseSource.close();
     setTimeout(subscribeToSessionChanges, 5000);
   };
@@ -3462,4 +3429,3 @@ document.addEventListener('keydown', (e) => {
     setTableColWidth();
   }
 });
-

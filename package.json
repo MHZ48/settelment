@@ -3,15 +3,22 @@
   "version": "1.0.0",
   "scripts": {
     "start": "node server/index.js",
-    "dev": "nodemon server/index.js"
+    "dev": "nodemon server/index.js",
+    "import-db": "node server/import-csv.js",
+    "test": "node --test server/test/*.test.js"
   },
   "dependencies": {
-    "better-sqlite3": "^9.4.3",
+    "better-sqlite3": "^12.11.1",
     "cors": "^2.8.5",
+    "csv-parse": "^7.0.2",
     "dotenv": "^16.4.5",
-    "express": "^4.19.2"
+    "express": "^4.22.2"
   },
   "devDependencies": {
+    "jsdom": "^29.1.1",
     "nodemon": "^3.1.0"
+  },
+  "overrides": {
+    "qs": "^6.16.0"
   }
 }
